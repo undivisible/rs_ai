@@ -44,6 +44,7 @@ fn message_to_chat(msg: &Message) -> ChatMessage {
             ContentPart::ToolCall { call } => {
                 tool_calls.push(ChatToolCall {
                     id: call.id.clone(),
+                    index: None,
                     call_type: "function".to_string(),
                     function: ChatFunctionCall {
                         name: call.name.clone(),

@@ -112,16 +112,10 @@ pub(crate) fn parse_sse_stream(
                             // Tool call deltas.
                             if let Some(ref tool_calls) = delta.tool_calls {
                                 for tc in tool_calls {
-                                    // The API sends an index in the `id` field
-                                    // position for deltas. We parse the index
-                                    // from the serialized chunk instead. The
-                                    // ChatToolCall struct reuses id/function
-                                    // fields, so we determine index from the
-                                    // order we see new ids.
-
-                                    // Determine index: if the tc has a non-empty
-                                    // id, it is the start of a new tool call.
-                                    let idx = choice.index;
+                                    // OpenAI streams parallel tool calls with
+                                    // `delta.tool_calls[].index`. Choice index
+                                    // is the completion choice, not the tool.
+                                    let idx = tc.index.unwrap_or(choice.index);
 
                                     if !tc.id.is_empty() {
                                         // New tool call starting — flush any
@@ -247,4 +241,55 @@ fn flush_pending_tools(
         }
     }
     events
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_sse_stream;
+    use futures::StreamExt;
+    use rs_ai_core::StreamEvent;
+
+    fn message(data: &str) -> reqwest_eventsource::Event {
+        reqwest_eventsource::Event::Message(eventsource_stream::Event {
+            event: String::new(),
+            data: data.into(),
+            id: String::new(),
+            retry: None,
+        })
+    }
+
+    #[tokio::test]
+    async fn parallel_tool_calls_use_tool_index_not_choice_index() {
+        let events = vec![
+            Ok(message(
+                r#"{"id":"c1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_a","type":"function","function":{"name":"alpha","arguments":"{"}}]}}]}"#,
+            )),
+            Ok(message(
+                r#"{"id":"c1","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"id":"call_b","type":"function","function":{"name":"beta","arguments":"{"}}]}}]}"#,
+            )),
+            Ok(message(
+                r#"{"id":"c1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"a\":1}"}}]}}]}"#,
+            )),
+            Ok(message(
+                r#"{"id":"c1","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"function":{"arguments":"\"b\":2}"}}]}}]}"#,
+            )),
+            Ok(message(
+                r#"{"id":"c1","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}"#,
+            )),
+        ];
+        let stream = parse_sse_stream(futures::stream::iter(events));
+        let collected: Vec<_> = stream.collect().await;
+        let ends: Vec<_> = collected
+            .into_iter()
+            .filter_map(|event| match event.unwrap() {
+                StreamEvent::ToolCallEnd { call_id, arguments } => Some((call_id, arguments)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(ends.len(), 2);
+        assert_eq!(ends[0].0, "call_a");
+        assert_eq!(ends[0].1, serde_json::json!({"a":1}));
+        assert_eq!(ends[1].0, "call_b");
+        assert_eq!(ends[1].1, serde_json::json!({"b":2}));
+    }
 }

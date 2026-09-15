@@ -45,6 +45,7 @@ pub(crate) struct StreamOptions {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct ChatMessage {
+    #[serde(default)]
     pub role: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<serde_json::Value>,
@@ -73,15 +74,20 @@ pub(crate) struct ChatFunction {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct ChatToolCall {
+    #[serde(default)]
     pub id: String,
-    #[serde(rename = "type")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index: Option<u32>,
+    #[serde(rename = "type", default)]
     pub call_type: String,
     pub function: ChatFunctionCall,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct ChatFunctionCall {
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub arguments: String,
 }
 

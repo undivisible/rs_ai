@@ -88,6 +88,28 @@ async fn different_tools_is_a_cache_miss() {
 }
 
 #[tokio::test]
+async fn different_max_steps_is_a_cache_miss() {
+    let model = MockLanguageModel::new("test")
+        .with_response(text_response("one-step"))
+        .with_response(text_response("five-steps"));
+
+    let chain = MiddlewareChain::new(model).with(CacheMiddleware::new(Duration::from_secs(60)));
+
+    let prompt = Prompt::from("same prompt");
+    let one = chain
+        .generate(prompt.clone(), GenerateOptions::default().with_max_steps(1))
+        .await
+        .unwrap();
+    let five = chain
+        .generate(prompt.clone(), GenerateOptions::default().with_max_steps(5))
+        .await
+        .unwrap();
+
+    assert_eq!(one.text.as_deref(), Some("one-step"));
+    assert_eq!(five.text.as_deref(), Some("five-steps"));
+}
+
+#[tokio::test]
 async fn expired_entry_is_not_returned() {
     let model = MockLanguageModel::new("test")
         .with_response(text_response("first"))
