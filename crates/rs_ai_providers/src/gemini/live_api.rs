@@ -6,6 +6,7 @@
 //! Reference: <https://ai.google.dev/gemini-api/docs/live-api>
 
 #![deny(missing_docs)]
+#![allow(clippy::result_large_err)]
 
 use base64::Engine;
 use futures::{SinkExt, StreamExt};

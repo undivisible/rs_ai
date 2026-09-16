@@ -337,6 +337,7 @@ impl ChatGptProvider {
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(clippy::result_large_err)]
     pub async fn realtime_session(
         &self,
         model: &str,

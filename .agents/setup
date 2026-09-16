@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log() { printf '[setup] %s\n' "$*"; }
+time_step() {
+  local label="$1"
+  shift
+  local start
+  start="$(date +%s)"
+  log "start: ${label}"
+  "$@"
+  log "done: ${label} ($(( $(date +%s) - start ))s)"
+}
+
+need_apt=()
+for pkg in curl ca-certificates build-essential pkg-config libssl-dev; do
+  if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+    need_apt+=("$pkg")
+  fi
+done
+if ((${#need_apt[@]})); then
+  time_step "apt-get update" sudo apt-get update -y
+  time_step "apt-get install ${need_apt[*]}" sudo apt-get install -y "${need_apt[@]}"
+else
+  log "system packages already present"
+fi
+
+export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+
+if ! command -v rustup >/dev/null 2>&1; then
+  time_step "install rustup" bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.86.0 --profile minimal'
+fi
+# shellcheck disable=SC1091
+source "${CARGO_HOME}/env"
+
+time_step "rustup toolchain 1.86.0" rustup toolchain install 1.86.0 --profile minimal
+time_step "rustup toolchain stable" rustup toolchain install stable --profile minimal --component rustfmt,clippy
+time_step "rustup default stable" rustup default stable
+
+time_step "cargo fetch" cargo fetch
+log "rustc=$(rustc --version) cargo=$(cargo --version)"

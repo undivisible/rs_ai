@@ -124,6 +124,7 @@ impl GeminiProvider {
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(clippy::result_large_err)]
     pub async fn live_session(
         &self,
         model_id: &str,

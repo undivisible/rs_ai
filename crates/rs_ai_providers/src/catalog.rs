@@ -41,7 +41,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.openai.com/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "gpt-5.5",
-        models: &["gpt-5.5", "gpt-5.5-pro", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro", "gpt-5.4"],
+        models: &[
+            "gpt-5.5",
+            "gpt-5.5-pro",
+            "gpt-5.4-mini",
+            "gpt-5.4-nano",
+            "gpt-5.4-pro",
+            "gpt-5.4",
+        ],
         aliases: &["gpt"],
     },
     ProviderSpec {
@@ -51,7 +58,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.anthropic.com/v1",
         api: ProviderApi::Anthropic,
         default_model: "claude-opus-4-7",
-        models: &["claude-opus-4-7", "claude-sonnet-4-6", "claude-opus-4-6", "claude-opus-4-5", "claude-opus-4-5-20251101", "claude-haiku-4-5"],
+        models: &[
+            "claude-opus-4-7",
+            "claude-sonnet-4-6",
+            "claude-opus-4-6",
+            "claude-opus-4-5",
+            "claude-opus-4-5-20251101",
+            "claude-haiku-4-5",
+        ],
         aliases: &["claude"],
     },
     ProviderSpec {
@@ -61,7 +75,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://generativelanguage.googleapis.com/v1beta",
         api: ProviderApi::OpenAiCompatible,
         default_model: "gemini-3.1-flash-lite",
-        models: &["gemini-3.1-flash-lite", "gemma-4-31b-it", "gemma-4-26b-a4b-it", "gemini-3.1-flash-lite-preview", "gemini-3.1-pro-preview-customtools", "gemini-3.1-pro-preview"],
+        models: &[
+            "gemini-3.1-flash-lite",
+            "gemma-4-31b-it",
+            "gemma-4-26b-a4b-it",
+            "gemini-3.1-flash-lite-preview",
+            "gemini-3.1-pro-preview-customtools",
+            "gemini-3.1-pro-preview",
+        ],
         aliases: &["gemini"],
     },
     ProviderSpec {
@@ -71,7 +92,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.x.ai/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "grok-4.3",
-        models: &["grok-4.3", "grok-4.20-0309-reasoning", "grok-4.20-0309-non-reasoning", "grok-4.20-multi-agent-0309", "grok-4-1-fast-non-reasoning", "grok-4-1-fast"],
+        models: &[
+            "grok-4.3",
+            "grok-4.20-0309-reasoning",
+            "grok-4.20-0309-non-reasoning",
+            "grok-4.20-multi-agent-0309",
+            "grok-4-1-fast-non-reasoning",
+            "grok-4-1-fast",
+        ],
         aliases: &["grok"],
     },
     ProviderSpec {
@@ -81,7 +109,12 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.deepseek.com",
         api: ProviderApi::OpenAiCompatible,
         default_model: "deepseek-v4-flash",
-        models: &["deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner"],
+        models: &[
+            "deepseek-v4-flash",
+            "deepseek-v4-pro",
+            "deepseek-chat",
+            "deepseek-reasoner",
+        ],
         aliases: &["ds"],
     },
     ProviderSpec {
@@ -91,7 +124,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.groq.com/openai/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "canopylabs/orpheus-v1-english",
-        models: &["canopylabs/orpheus-v1-english", "canopylabs/orpheus-arabic-saudi", "moonshotai/kimi-k2-instruct-0905", "groq/compound", "groq/compound-mini", "openai/gpt-oss-20b"],
+        models: &[
+            "canopylabs/orpheus-v1-english",
+            "canopylabs/orpheus-arabic-saudi",
+            "moonshotai/kimi-k2-instruct-0905",
+            "groq/compound",
+            "groq/compound-mini",
+            "openai/gpt-oss-20b",
+        ],
         aliases: &[],
     },
     ProviderSpec {
@@ -101,7 +141,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.together.xyz/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "Qwen/Qwen3.6-Plus",
-        models: &["Qwen/Qwen3.6-Plus", "deepseek-ai/DeepSeek-V4-Pro", "moonshotai/Kimi-K2.6", "zai-org/GLM-5.1", "google/gemma-4-31B-it", "MiniMaxAI/MiniMax-M2.7"],
+        models: &[
+            "Qwen/Qwen3.6-Plus",
+            "deepseek-ai/DeepSeek-V4-Pro",
+            "moonshotai/Kimi-K2.6",
+            "zai-org/GLM-5.1",
+            "google/gemma-4-31B-it",
+            "MiniMaxAI/MiniMax-M2.7",
+        ],
         aliases: &["together"],
     },
     ProviderSpec {
@@ -111,7 +158,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.mistral.ai/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "mistral-medium-2604",
-        models: &["mistral-medium-2604", "mistral-medium-latest", "mistral-small-latest", "mistral-small-2603", "labs-devstral-small-2512", "devstral-2512"],
+        models: &[
+            "mistral-medium-2604",
+            "mistral-medium-latest",
+            "mistral-small-latest",
+            "mistral-small-2603",
+            "labs-devstral-small-2512",
+            "devstral-2512",
+        ],
         aliases: &[],
     },
     ProviderSpec {
@@ -121,7 +175,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.fireworks.ai/inference/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "accounts/fireworks/models/deepseek-v4-pro",
-        models: &["accounts/fireworks/models/deepseek-v4-pro", "accounts/fireworks/models/kimi-k2p6", "accounts/fireworks/models/minimax-m2p7", "accounts/fireworks/models/qwen3p6-plus", "accounts/fireworks/models/glm-5p1", "accounts/fireworks/models/minimax-m2p5"],
+        models: &[
+            "accounts/fireworks/models/deepseek-v4-pro",
+            "accounts/fireworks/models/kimi-k2p6",
+            "accounts/fireworks/models/minimax-m2p7",
+            "accounts/fireworks/models/qwen3p6-plus",
+            "accounts/fireworks/models/glm-5p1",
+            "accounts/fireworks/models/minimax-m2p5",
+        ],
         aliases: &["fireworks"],
     },
     ProviderSpec {
@@ -131,7 +192,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://integrate.api.nvidia.com/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "deepseek-ai/deepseek-v4-flash",
-        models: &["deepseek-ai/deepseek-v4-flash", "deepseek-ai/deepseek-v4-pro", "moonshotai/kimi-k2.6", "nvidia/nemotron-3-content-safety", "google/gemma-4-31b-it", "z-ai/glm-5.1"],
+        models: &[
+            "deepseek-ai/deepseek-v4-flash",
+            "deepseek-ai/deepseek-v4-pro",
+            "moonshotai/kimi-k2.6",
+            "nvidia/nemotron-3-content-safety",
+            "google/gemma-4-31b-it",
+            "z-ai/glm-5.1",
+        ],
         aliases: &["nim"],
     },
     ProviderSpec {
@@ -141,7 +209,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://router.huggingface.co/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "deepseek-ai/DeepSeek-V4-Pro",
-        models: &["deepseek-ai/DeepSeek-V4-Pro", "moonshotai/Kimi-K2.6", "zai-org/GLM-5.1", "MiniMaxAI/MiniMax-M2.7", "MiniMaxAI/MiniMax-M2.5", "zai-org/GLM-5"],
+        models: &[
+            "deepseek-ai/DeepSeek-V4-Pro",
+            "moonshotai/Kimi-K2.6",
+            "zai-org/GLM-5.1",
+            "MiniMaxAI/MiniMax-M2.7",
+            "MiniMaxAI/MiniMax-M2.5",
+            "zai-org/GLM-5",
+        ],
         aliases: &["hf"],
     },
     ProviderSpec {
@@ -151,7 +226,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://openrouter.ai/api/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "x-ai/grok-4.3",
-        models: &["x-ai/grok-4.3", "openrouter/owl-alpha", "poolside/laguna-m.1:free", "poolside/laguna-xs.2:free", "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-pro"],
+        models: &[
+            "x-ai/grok-4.3",
+            "openrouter/owl-alpha",
+            "poolside/laguna-m.1:free",
+            "poolside/laguna-xs.2:free",
+            "deepseek/deepseek-v4-flash",
+            "deepseek/deepseek-v4-pro",
+        ],
         aliases: &["router"],
     },
     ProviderSpec {
@@ -161,7 +243,12 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.perplexity.ai",
         api: ProviderApi::OpenAiCompatible,
         default_model: "sonar-deep-research",
-        models: &["sonar-deep-research", "sonar-pro", "sonar", "sonar-reasoning-pro"],
+        models: &[
+            "sonar-deep-research",
+            "sonar-pro",
+            "sonar",
+            "sonar-reasoning-pro",
+        ],
         aliases: &["pplx"],
     },
     ProviderSpec {
@@ -171,7 +258,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.cohere.ai/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "command-a-translate-08-2025",
-        models: &["command-a-translate-08-2025", "command-a-reasoning-08-2025", "command-a-03-2025", "command-r7b-arabic-02-2025", "c4ai-aya-expanse-8b", "c4ai-aya-expanse-32b"],
+        models: &[
+            "command-a-translate-08-2025",
+            "command-a-reasoning-08-2025",
+            "command-a-03-2025",
+            "command-r7b-arabic-02-2025",
+            "c4ai-aya-expanse-8b",
+            "c4ai-aya-expanse-32b",
+        ],
         aliases: &[],
     },
     ProviderSpec {
@@ -181,7 +275,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.deepinfra.com/v1/openai",
         api: ProviderApi::OpenAiCompatible,
         default_model: "deepseek-ai/DeepSeek-V4-Flash",
-        models: &["deepseek-ai/DeepSeek-V4-Flash", "deepseek-ai/DeepSeek-V4-Pro", "xiaomi/mimo-v2.5-pro", "xiaomi/mimo-v2.5", "moonshotai/Kimi-K2.6", "zai-org/GLM-5.1"],
+        models: &[
+            "deepseek-ai/DeepSeek-V4-Flash",
+            "deepseek-ai/DeepSeek-V4-Pro",
+            "xiaomi/mimo-v2.5-pro",
+            "xiaomi/mimo-v2.5",
+            "moonshotai/Kimi-K2.6",
+            "zai-org/GLM-5.1",
+        ],
         aliases: &["di"],
     },
     ProviderSpec {
@@ -191,7 +292,12 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.cerebras.ai/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "zai-glm-4.7",
-        models: &["zai-glm-4.7", "gpt-oss-120b", "qwen-3-235b-a22b-instruct-2507", "llama3.1-8b"],
+        models: &[
+            "zai-glm-4.7",
+            "gpt-oss-120b",
+            "qwen-3-235b-a22b-instruct-2507",
+            "llama3.1-8b",
+        ],
         aliases: &[],
     },
     ProviderSpec {
@@ -201,7 +307,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://opencode.ai/zen/go/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "muse-spark-1.3-contributor",
-        models: &["muse-spark-1.3-contributor", "muse-spark-1.2-contributor", "deepseek-v4-flash", "deepseek-v4-pro", "mimo-v2.5", "glm-5.1"],
+        models: &[
+            "muse-spark-1.3-contributor",
+            "muse-spark-1.2-contributor",
+            "deepseek-v4-flash",
+            "deepseek-v4-pro",
+            "mimo-v2.5",
+            "glm-5.1",
+        ],
         aliases: &["opencode", "go", "zen"],
     },
     ProviderSpec {
@@ -211,7 +324,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://opencode.ai/zen/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "muse-spark-1.3-contributor-free",
-        models: &["muse-spark-1.3-contributor-free", "muse-spark-1.2-contributor-free", "deepseek-v4-flash-free", "mimo-v2.5-free", "ling-3.0-flash-fin-free", "nemotron-3.5-lightning-free"],
+        models: &[
+            "muse-spark-1.3-contributor-free",
+            "muse-spark-1.2-contributor-free",
+            "deepseek-v4-flash-free",
+            "mimo-v2.5-free",
+            "ling-3.0-flash-fin-free",
+            "nemotron-3.5-lightning-free",
+        ],
         aliases: &["opencode-free"],
     },
     ProviderSpec {
@@ -221,7 +341,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.venice.ai/api/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "openai-gpt-55-pro",
-        models: &["openai-gpt-55-pro", "deepseek-v4-flash", "qwen3-6-27b", "deepseek-v4-pro", "openai-gpt-55", "kimi-k2-6"],
+        models: &[
+            "openai-gpt-55-pro",
+            "deepseek-v4-flash",
+            "qwen3-6-27b",
+            "deepseek-v4-pro",
+            "openai-gpt-55",
+            "kimi-k2-6",
+        ],
         aliases: &[],
     },
     ProviderSpec {
@@ -232,7 +359,8 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         api: ProviderApi::OpenAiCompatible,
         default_model: "cline-pass/deepseek-v4-flash",
         models: &[
-            "cline-pass/deepseek-v4-flash", "cline-pass/qwen3.7-max",
+            "cline-pass/deepseek-v4-flash",
+            "cline-pass/qwen3.7-max",
             "cline-pass/glm-5.2",
         ],
         aliases: &["cline-pass", "cline"],
@@ -245,7 +373,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "qwen3.6-27b",
-        models: &["qwen3.6-27b", "qwen3.6-max-preview", "qwen3.6-35b-a3b", "qwen3.6-plus", "qwen3.5-122b-a10b", "qwen3.5-27b"],
+        models: &[
+            "qwen3.6-27b",
+            "qwen3.6-max-preview",
+            "qwen3.6-35b-a3b",
+            "qwen3.6-plus",
+            "qwen3.5-122b-a10b",
+            "qwen3.5-27b",
+        ],
         aliases: &["qwen", "dashscope"],
     },
     ProviderSpec {
@@ -255,7 +390,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "deepseek-v4-flash",
-        models: &["deepseek-v4-flash", "deepseek-v4-pro", "kimi-k2.6", "qwen3.6-max-preview", "glm-5.1", "qwen3.6-plus"],
+        models: &[
+            "deepseek-v4-flash",
+            "deepseek-v4-pro",
+            "kimi-k2.6",
+            "qwen3.6-max-preview",
+            "glm-5.1",
+            "qwen3.6-plus",
+        ],
         aliases: &["qwen-cn"],
     },
     ProviderSpec {
@@ -286,7 +428,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.moonshot.ai/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "kimi-k2.6",
-        models: &["kimi-k2.6", "kimi-k2.5", "kimi-k2-thinking-turbo", "kimi-k2-thinking", "kimi-k2-0905-preview", "kimi-k2-turbo-preview"],
+        models: &[
+            "kimi-k2.6",
+            "kimi-k2.5",
+            "kimi-k2-thinking-turbo",
+            "kimi-k2-thinking",
+            "kimi-k2-0905-preview",
+            "kimi-k2-turbo-preview",
+        ],
         aliases: &["kimi", "moonshot"],
     },
     ProviderSpec {
@@ -296,7 +445,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.moonshot.cn/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "kimi-k2.6",
-        models: &["kimi-k2.6", "kimi-k2.5", "kimi-k2-thinking", "kimi-k2-thinking-turbo", "kimi-k2-turbo-preview", "kimi-k2-0905-preview"],
+        models: &[
+            "kimi-k2.6",
+            "kimi-k2.5",
+            "kimi-k2-thinking",
+            "kimi-k2-thinking-turbo",
+            "kimi-k2-turbo-preview",
+            "kimi-k2-0905-preview",
+        ],
         aliases: &["kimi-cn"],
     },
     ProviderSpec {
@@ -317,7 +473,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.minimax.io/anthropic/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "MiniMax-M2.7",
-        models: &["MiniMax-M2.7", "MiniMax-M2.7-highspeed", "MiniMax-M2.5-highspeed", "MiniMax-M2.5", "MiniMax-M2.1", "MiniMax-M2"],
+        models: &[
+            "MiniMax-M2.7",
+            "MiniMax-M2.7-highspeed",
+            "MiniMax-M2.5-highspeed",
+            "MiniMax-M2.5",
+            "MiniMax-M2.1",
+            "MiniMax-M2",
+        ],
         aliases: &["mmax"],
     },
     ProviderSpec {
@@ -327,7 +490,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.minimaxi.com/anthropic/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "MiniMax-M2.7",
-        models: &["MiniMax-M2.7", "MiniMax-M2.7-highspeed", "MiniMax-M2.5-highspeed", "MiniMax-M2.5", "MiniMax-M2.1", "MiniMax-M2"],
+        models: &[
+            "MiniMax-M2.7",
+            "MiniMax-M2.7-highspeed",
+            "MiniMax-M2.5-highspeed",
+            "MiniMax-M2.5",
+            "MiniMax-M2.1",
+            "MiniMax-M2",
+        ],
         aliases: &["mmax-cn"],
     },
     ProviderSpec {
@@ -358,7 +528,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://open.bigmodel.cn/api/paas/v4",
         api: ProviderApi::OpenAiCompatible,
         default_model: "glm-5v-turbo",
-        models: &["glm-5v-turbo", "glm-5.1", "glm-5", "glm-4.7-flash", "glm-4.7-flashx", "glm-4.7"],
+        models: &[
+            "glm-5v-turbo",
+            "glm-5.1",
+            "glm-5",
+            "glm-4.7-flash",
+            "glm-4.7-flashx",
+            "glm-4.7",
+        ],
         aliases: &["glm-cn"],
     },
     ProviderSpec {
@@ -368,7 +545,13 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://open.bigmodel.cn/api/coding/paas/v4",
         api: ProviderApi::OpenAiCompatible,
         default_model: "glm-5v-turbo",
-        models: &["glm-5v-turbo", "glm-5.1", "glm-5-turbo", "glm-4.7", "glm-4.5-air"],
+        models: &[
+            "glm-5v-turbo",
+            "glm-5.1",
+            "glm-5-turbo",
+            "glm-4.7",
+            "glm-4.5-air",
+        ],
         aliases: &["glm-code-cn"],
     },
     ProviderSpec {
@@ -378,7 +561,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.z.ai/api/paas/v4",
         api: ProviderApi::OpenAiCompatible,
         default_model: "glm-5v-turbo",
-        models: &["glm-5v-turbo", "glm-5.1", "glm-5-turbo", "glm-5", "glm-4.7-flashx", "glm-4.7-flash"],
+        models: &[
+            "glm-5v-turbo",
+            "glm-5.1",
+            "glm-5-turbo",
+            "glm-5",
+            "glm-4.7-flashx",
+            "glm-4.7-flash",
+        ],
         aliases: &["z.ai", "glm"],
     },
     ProviderSpec {
@@ -388,7 +578,13 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.z.ai/api/coding/paas/v4",
         api: ProviderApi::OpenAiCompatible,
         default_model: "glm-5v-turbo",
-        models: &["glm-5v-turbo", "glm-5.1", "glm-5-turbo", "glm-4.7", "glm-4.5-air"],
+        models: &[
+            "glm-5v-turbo",
+            "glm-5.1",
+            "glm-5-turbo",
+            "glm-4.7",
+            "glm-4.5-air",
+        ],
         aliases: &["zai-code"],
     },
     // ── Xiaomi MiMo ──
@@ -440,7 +636,12 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.stepfun.com/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "step-3.5-flash-2603",
-        models: &["step-3.5-flash-2603", "step-3.5-flash", "step-1-32k", "step-2-16k"],
+        models: &[
+            "step-3.5-flash-2603",
+            "step-3.5-flash",
+            "step-1-32k",
+            "step-2-16k",
+        ],
         aliases: &["step"],
     },
     // ── SiliconFlow ──
@@ -451,7 +652,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.siliconflow.com/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "moonshotai/Kimi-K2.6",
-        models: &["moonshotai/Kimi-K2.6", "zai-org/GLM-5.1", "zai-org/GLM-5V-Turbo", "MiniMaxAI/MiniMax-M2.5", "zai-org/GLM-5", "stepfun-ai/Step-3.5-Flash"],
+        models: &[
+            "moonshotai/Kimi-K2.6",
+            "zai-org/GLM-5.1",
+            "zai-org/GLM-5V-Turbo",
+            "MiniMaxAI/MiniMax-M2.5",
+            "zai-org/GLM-5",
+            "stepfun-ai/Step-3.5-Flash",
+        ],
         aliases: &["sf"],
     },
     ProviderSpec {
@@ -461,7 +669,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.siliconflow.cn/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "Pro/moonshotai/Kimi-K2.6",
-        models: &["Pro/moonshotai/Kimi-K2.6", "Qwen/Qwen3.6-35B-A3B", "Pro/zai-org/GLM-5.1", "Qwen/Qwen3.5-9B", "Qwen/Qwen3.5-4B", "Qwen/Qwen3.5-122B-A10B"],
+        models: &[
+            "Pro/moonshotai/Kimi-K2.6",
+            "Qwen/Qwen3.6-35B-A3B",
+            "Pro/zai-org/GLM-5.1",
+            "Qwen/Qwen3.5-9B",
+            "Qwen/Qwen3.5-4B",
+            "Qwen/Qwen3.5-122B-A10B",
+        ],
         aliases: &["sf-cn"],
     },
     // ── Gateway / Router providers ──
@@ -472,7 +687,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.kilo.ai/api/gateway",
         api: ProviderApi::OpenAiCompatible,
         default_model: "baidu/cobuddy:free",
-        models: &["baidu/cobuddy:free", "openai/gpt-chat-latest", "x-ai/grok-4.3", "ibm-granite/granite-4.1-8b", "mistralai/mistral-medium-3-5", "openrouter/owl-alpha"],
+        models: &[
+            "baidu/cobuddy:free",
+            "openai/gpt-chat-latest",
+            "x-ai/grok-4.3",
+            "ibm-granite/granite-4.1-8b",
+            "mistralai/mistral-medium-3-5",
+            "openrouter/owl-alpha",
+        ],
         aliases: &[],
     },
     ProviderSpec {
@@ -492,7 +714,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://zenmux.ai/api/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "deepseek/deepseek-v4-flash",
-        models: &["deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-pro", "openai/gpt-5.5", "openai/gpt-5.5-pro", "xiaomi/mimo-v2.5-pro", "xiaomi/mimo-v2.5"],
+        models: &[
+            "deepseek/deepseek-v4-flash",
+            "deepseek/deepseek-v4-pro",
+            "openai/gpt-5.5",
+            "openai/gpt-5.5-pro",
+            "xiaomi/mimo-v2.5-pro",
+            "xiaomi/mimo-v2.5",
+        ],
         aliases: &["zmux"],
     },
     ProviderSpec {
@@ -502,7 +731,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://ai-gateway.helicone.ai/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "claude-4.5-opus",
-        models: &["claude-4.5-opus", "gemini-3-pro-preview", "grok-4-1-fast-reasoning", "grok-4-1-fast-non-reasoning", "kimi-k2-thinking", "claude-4.5-haiku"],
+        models: &[
+            "claude-4.5-opus",
+            "gemini-3-pro-preview",
+            "grok-4-1-fast-reasoning",
+            "grok-4-1-fast-non-reasoning",
+            "kimi-k2-thinking",
+            "claude-4.5-haiku",
+        ],
         aliases: &[],
     },
     ProviderSpec {
@@ -512,7 +748,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://router.requesty.ai/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "openai/gpt-5.4-pro",
-        models: &["openai/gpt-5.4-pro", "openai/gpt-5.4", "openai/gpt-5.3-codex", "anthropic/claude-sonnet-4-6", "anthropic/claude-opus-4-6", "openai/gpt-5.2-codex"],
+        models: &[
+            "openai/gpt-5.4-pro",
+            "openai/gpt-5.4",
+            "openai/gpt-5.3-codex",
+            "anthropic/claude-sonnet-4-6",
+            "anthropic/claude-opus-4-6",
+            "openai/gpt-5.2-codex",
+        ],
         aliases: &[],
     },
     ProviderSpec {
@@ -533,7 +776,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://inference.baseten.co/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "deepseek-ai/DeepSeek-V4-Pro",
-        models: &["deepseek-ai/DeepSeek-V4-Pro", "moonshotai/Kimi-K2.6", "nvidia/Nemotron-120B-A12B", "zai-org/GLM-5", "MiniMaxAI/MiniMax-M2.5", "moonshotai/Kimi-K2.5"],
+        models: &[
+            "deepseek-ai/DeepSeek-V4-Pro",
+            "moonshotai/Kimi-K2.6",
+            "nvidia/Nemotron-120B-A12B",
+            "zai-org/GLM-5",
+            "MiniMaxAI/MiniMax-M2.5",
+            "moonshotai/Kimi-K2.5",
+        ],
         aliases: &[],
     },
     ProviderSpec {
@@ -543,7 +793,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.novita.ai/openai",
         api: ProviderApi::OpenAiCompatible,
         default_model: "inclusionai/ling-2.6-flash",
-        models: &["inclusionai/ling-2.6-flash", "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-pro", "inclusionai/ling-2.6-1t", "moonshotai/kimi-k2.6", "google/gemma-4-31b-it"],
+        models: &[
+            "inclusionai/ling-2.6-flash",
+            "deepseek/deepseek-v4-flash",
+            "deepseek/deepseek-v4-pro",
+            "inclusionai/ling-2.6-1t",
+            "moonshotai/kimi-k2.6",
+            "google/gemma-4-31b-it",
+        ],
         aliases: &["novita"],
     },
     ProviderSpec {
@@ -553,7 +810,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.tokenfactory.nebius.com/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "deepseek-ai/DeepSeek-V4-Pro",
-        models: &["deepseek-ai/DeepSeek-V4-Pro", "nvidia/nemotron-3-super-120b-a12b", "zai-org/GLM-5", "NousResearch/Hermes-4-70B", "NousResearch/Hermes-4-405B", "Qwen/Qwen3-30B-A3B-Instruct-2507"],
+        models: &[
+            "deepseek-ai/DeepSeek-V4-Pro",
+            "nvidia/nemotron-3-super-120b-a12b",
+            "zai-org/GLM-5",
+            "NousResearch/Hermes-4-70B",
+            "NousResearch/Hermes-4-405B",
+            "Qwen/Qwen3-30B-A3B-Instruct-2507",
+        ],
         aliases: &[],
     },
     ProviderSpec {
@@ -563,7 +827,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.githubcopilot.com",
         api: ProviderApi::OpenAiCompatible,
         default_model: "gpt-5.5",
-        models: &["gpt-5.5", "claude-opus-4.7", "gpt-5.4-mini", "gpt-5.4", "gpt-5.3-codex", "gemini-3.1-pro-preview"],
+        models: &[
+            "gpt-5.5",
+            "claude-opus-4.7",
+            "gpt-5.4-mini",
+            "gpt-5.4",
+            "gpt-5.3-codex",
+            "gemini-3.1-pro-preview",
+        ],
         aliases: &["copilot"],
     },
     ProviderSpec {
@@ -573,7 +844,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://models.github.ai/inference",
         api: ProviderApi::OpenAiCompatible,
         default_model: "deepseek/deepseek-r1-0528",
-        models: &["deepseek/deepseek-r1-0528", "mistral-ai/mistral-medium-2505", "openai/gpt-4.1-nano", "openai/gpt-4.1", "openai/gpt-4.1-mini", "deepseek/deepseek-v3-0324"],
+        models: &[
+            "deepseek/deepseek-r1-0528",
+            "mistral-ai/mistral-medium-2505",
+            "openai/gpt-4.1-nano",
+            "openai/gpt-4.1",
+            "openai/gpt-4.1-mini",
+            "deepseek/deepseek-v3-0324",
+        ],
         aliases: &["gh-models"],
     },
     ProviderSpec {
@@ -583,7 +861,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.perplexity.ai/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "openai/gpt-5.5",
-        models: &["openai/gpt-5.5", "anthropic/claude-opus-4-7", "nvidia/nemotron-3-super-120b-a12b", "openai/gpt-5.4", "google/gemini-3.1-pro-preview", "anthropic/claude-sonnet-4-6"],
+        models: &[
+            "openai/gpt-5.5",
+            "anthropic/claude-opus-4-7",
+            "nvidia/nemotron-3-super-120b-a12b",
+            "openai/gpt-5.4",
+            "google/gemini-3.1-pro-preview",
+            "anthropic/claude-sonnet-4-6",
+        ],
         aliases: &["pplx-agent"],
     },
     ProviderSpec {
@@ -603,7 +888,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://ollama.com/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "deepseek-v4-flash",
-        models: &["deepseek-v4-flash", "deepseek-v4-pro", "kimi-k2.6", "gemma4:31b", "glm-5.1", "minimax-m2.7"],
+        models: &[
+            "deepseek-v4-flash",
+            "deepseek-v4-pro",
+            "kimi-k2.6",
+            "gemma4:31b",
+            "glm-5.1",
+            "minimax-m2.7",
+        ],
         aliases: &[],
     },
     // ── Chinese ecosystem ──
@@ -644,7 +936,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://api.siliconflow.cn/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "Pro/moonshotai/Kimi-K2.6",
-        models: &["Pro/moonshotai/Kimi-K2.6", "Qwen/Qwen3.6-35B-A3B", "Pro/zai-org/GLM-5.1", "Qwen/Qwen3.5-9B", "Qwen/Qwen3.5-4B", "Qwen/Qwen3.5-122B-A10B"],
+        models: &[
+            "Pro/moonshotai/Kimi-K2.6",
+            "Qwen/Qwen3.6-35B-A3B",
+            "Pro/zai-org/GLM-5.1",
+            "Qwen/Qwen3.5-9B",
+            "Qwen/Qwen3.5-4B",
+            "Qwen/Qwen3.5-122B-A10B",
+        ],
         aliases: &["sf-cn"],
     },
     ProviderSpec {
@@ -742,7 +1041,11 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
     ProviderSpec {
         id: "cloudflare-ai-gateway",
         name: "Cloudflare AI Gateway",
-        env_vars: &["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_GATEWAY_ID"],
+        env_vars: &[
+            "CLOUDFLARE_API_TOKEN",
+            "CLOUDFLARE_ACCOUNT_ID",
+            "CLOUDFLARE_GATEWAY_ID",
+        ],
         base_url: "",
         api: ProviderApi::Custom,
         default_model: "openai/gpt-5.5",
@@ -767,37 +1070,76 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "",
         api: ProviderApi::Custom,
         default_model: "gpt-5.5",
-        models: &["gpt-5.5", "kimi-k2.6", "grok-4-20-non-reasoning", "grok-4-20-reasoning", "gpt-5.4-mini", "gpt-5.4-nano"],
+        models: &[
+            "gpt-5.5",
+            "kimi-k2.6",
+            "grok-4-20-non-reasoning",
+            "grok-4-20-reasoning",
+            "gpt-5.4-mini",
+            "gpt-5.4-nano",
+        ],
         aliases: &[],
     },
     ProviderSpec {
         id: "azure-cognitive-services",
         name: "Azure Cognitive Services",
-        env_vars: &["AZURE_COGNITIVE_SERVICES_RESOURCE_NAME", "AZURE_COGNITIVE_SERVICES_API_KEY"],
+        env_vars: &[
+            "AZURE_COGNITIVE_SERVICES_RESOURCE_NAME",
+            "AZURE_COGNITIVE_SERVICES_API_KEY",
+        ],
         base_url: "",
         api: ProviderApi::Custom,
         default_model: "gpt-5.5",
-        models: &["gpt-5.5", "kimi-k2.6", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro", "gpt-5.4"],
+        models: &[
+            "gpt-5.5",
+            "kimi-k2.6",
+            "gpt-5.4-mini",
+            "gpt-5.4-nano",
+            "gpt-5.4-pro",
+            "gpt-5.4",
+        ],
         aliases: &["azure-cog"],
     },
     ProviderSpec {
         id: "google-vertex",
         name: "Vertex AI",
-        env_vars: &["GOOGLE_VERTEX_PROJECT", "GOOGLE_VERTEX_LOCATION", "GOOGLE_APPLICATION_CREDENTIALS"],
+        env_vars: &[
+            "GOOGLE_VERTEX_PROJECT",
+            "GOOGLE_VERTEX_LOCATION",
+            "GOOGLE_APPLICATION_CREDENTIALS",
+        ],
         base_url: "",
         api: ProviderApi::Custom,
         default_model: "gemini-3.1-flash-lite",
-        models: &["gemini-3.1-flash-lite", "claude-opus-4-7@default", "gemini-3.1-flash-lite-preview", "gemini-3.1-pro-preview-customtools", "gemini-3.1-pro-preview", "claude-sonnet-4-6@default"],
+        models: &[
+            "gemini-3.1-flash-lite",
+            "claude-opus-4-7@default",
+            "gemini-3.1-flash-lite-preview",
+            "gemini-3.1-pro-preview-customtools",
+            "gemini-3.1-pro-preview",
+            "claude-sonnet-4-6@default",
+        ],
         aliases: &["vertex"],
     },
     ProviderSpec {
         id: "google-vertex-anthropic",
         name: "Vertex (Anthropic)",
-        env_vars: &["GOOGLE_VERTEX_PROJECT", "GOOGLE_VERTEX_LOCATION", "GOOGLE_APPLICATION_CREDENTIALS"],
+        env_vars: &[
+            "GOOGLE_VERTEX_PROJECT",
+            "GOOGLE_VERTEX_LOCATION",
+            "GOOGLE_APPLICATION_CREDENTIALS",
+        ],
         base_url: "",
         api: ProviderApi::Custom,
         default_model: "claude-opus-4-7@default",
-        models: &["claude-opus-4-7@default", "claude-sonnet-4-6@default", "claude-opus-4-6@default", "claude-opus-4-5@20251101", "claude-haiku-4-5@20251001", "claude-sonnet-4-5@20250929"],
+        models: &[
+            "claude-opus-4-7@default",
+            "claude-sonnet-4-6@default",
+            "claude-opus-4-6@default",
+            "claude-opus-4-5@20251101",
+            "claude-haiku-4-5@20251001",
+            "claude-sonnet-4-5@20250929",
+        ],
         aliases: &["vertex-claude"],
     },
     ProviderSpec {
@@ -838,7 +1180,14 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
         base_url: "https://routellm.abacus.ai/v1",
         api: ProviderApi::OpenAiCompatible,
         default_model: "gpt-5.4",
-        models: &["gpt-5.4", "gemini-3.1-flash-lite-preview", "gpt-5.3-chat-latest", "gemini-3.1-pro-preview", "claude-sonnet-4-6", "zai-org/glm-5"],
+        models: &[
+            "gpt-5.4",
+            "gemini-3.1-flash-lite-preview",
+            "gpt-5.3-chat-latest",
+            "gemini-3.1-pro-preview",
+            "claude-sonnet-4-6",
+            "zai-org/glm-5",
+        ],
         aliases: &[],
     },
     ProviderSpec {
@@ -1090,9 +1439,7 @@ pub const API_KEY_PROVIDERS: &[ProviderSpec] = &[
 pub fn find(query: &str) -> Option<&'static ProviderSpec> {
     let q = query.trim().to_ascii_lowercase();
     API_KEY_PROVIDERS.iter().find(|p| {
-        p.id == q
-            || p.name.to_ascii_lowercase() == q
-            || p.aliases.iter().any(|a| *a == q)
+        p.id == q || p.name.to_ascii_lowercase() == q || p.aliases.iter().any(|a| *a == q)
     })
 }
 
@@ -1131,7 +1478,7 @@ pub fn normalize_model(spec: &ProviderSpec, model: &str) -> String {
             } else {
                 format!("cline-pass/{model}")
             }
-        },
+        }
         _ => model.to_string(),
     }
 }
@@ -1174,10 +1521,7 @@ mod tests {
             infer_from_model("anthropic/claude-sonnet-4-6").map(|p| p.id),
             Some("anthropic")
         );
-        assert_eq!(
-            infer_from_model("xai/grok-4.5").map(|p| p.id),
-            Some("xai")
-        );
+        assert_eq!(infer_from_model("xai/grok-4.5").map(|p| p.id), Some("xai"));
         assert!(infer_from_model("no-prefix-model").is_none());
     }
 

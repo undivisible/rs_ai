@@ -6,6 +6,7 @@
 //! Reference: <https://platform.openai.com/docs/api-reference/realtime>
 
 #![deny(missing_docs)]
+#![allow(clippy::result_large_err)]
 
 use std::sync::Arc;
 
