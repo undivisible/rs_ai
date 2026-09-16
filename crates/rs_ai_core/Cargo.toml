@@ -37,7 +37,7 @@ mime = { workspace = true }
 moka = { workspace = true }
 secrecy = { workspace = true }
 reqwest = { workspace = true }
-rs_ai_oauth = { path = "../rs_ai_oauth", version = "0.2.35", optional = true }
+rs_ai_oauth = { path = "../rs_ai_oauth", version = "0.2.36", optional = true }
 
 # telemetry (optional)
 opentelemetry = { version = "0.27", optional = true, features = ["trace"] }

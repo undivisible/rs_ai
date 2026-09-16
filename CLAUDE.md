@@ -1,4 +1,4 @@
-# rs_ai — Codebase Guide (v0.2.35)
+# rs_ai — Codebase Guide (v0.2.36)
 
 ## Overview
 
@@ -8,7 +8,7 @@
 
 ```
 rs_ai/
-├── Cargo.toml               # version = "0.2.35"
+├── Cargo.toml               # version = "0.2.36"
 ├── Makefile                 # make {fmt,check,clippy,test,doc,ci}
 ├── crates/
 │   ├── rs_ai_core/          # Core traits, types, middleware, cache, observability

@@ -23,7 +23,7 @@ langfuse = []
 
 [dependencies]
 rs_ai_core = { workspace = true }
-rs_ai_oauth = { path = "../rs_ai_oauth", version = "0.2.35", optional = true }
+rs_ai_oauth = { path = "../rs_ai_oauth", version = "0.2.36", optional = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true }

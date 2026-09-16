@@ -1,4 +1,4 @@
-# rs_ai — Rust AI SDK (v0.2.35)
+# rs_ai — Rust AI SDK (v0.2.36)
 
 Comprehensive Rust SDK for AI applications. Cloud + local providers, streaming, agent loop, image/video generation, realtime voice, and a clean async-first API.
 
