@@ -26,20 +26,20 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.35"
+version = "0.2.36"
 edition = "2021"
-rust-version = "1.86"
+rust-version = "1.88"
 license = "ISC"
 repository = "https://github.com/undivisible/rs_ai"
 description = "Rust AI SDK with cloud and local providers"
 
 [workspace.dependencies]
 # Consolidated crates
-rs_ai_core = { path = "crates/rs_ai_core", version = "0.2.35" }
-rs_ai_providers = { path = "crates/rs_ai_providers", version = "0.2.35" }
-rs_ai_local = { path = "crates/rs_ai_local", version = "0.2.35" }
-rs_ai_testing = { path = "crates/rs_ai_testing", version = "0.2.35" }
-rs_ai = { path = "crates/rs_ai", version = "0.2.35" }
+rs_ai_core = { path = "crates/rs_ai_core", version = "0.2.36" }
+rs_ai_providers = { path = "crates/rs_ai_providers", version = "0.2.36" }
+rs_ai_local = { path = "crates/rs_ai_local", version = "0.2.36" }
+rs_ai_testing = { path = "crates/rs_ai_testing", version = "0.2.36" }
+rs_ai = { path = "crates/rs_ai", version = "0.2.36" }
 
 # Async / streaming
 tokio = { version = "1", features = ["full"] }

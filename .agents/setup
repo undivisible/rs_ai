@@ -29,12 +29,12 @@ export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
 export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
 
 if ! command -v rustup >/dev/null 2>&1; then
-  time_step "install rustup" bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.86.0 --profile minimal'
+  time_step "install rustup" bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.88.0 --profile minimal'
 fi
 # shellcheck disable=SC1091
 source "${CARGO_HOME}/env"
 
-time_step "rustup toolchain 1.86.0" rustup toolchain install 1.86.0 --profile minimal
+time_step "rustup toolchain 1.88.0" rustup toolchain install 1.88.0 --profile minimal
 time_step "rustup toolchain stable" rustup toolchain install stable --profile minimal --component rustfmt,clippy
 time_step "rustup default stable" rustup default stable
 
