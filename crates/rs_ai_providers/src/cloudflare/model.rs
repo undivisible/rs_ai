@@ -129,20 +129,14 @@ impl LanguageModel for CloudflareModel {
 
         let stream = response
             .bytes_stream()
-            .scan(String::new(), |buffer, chunk| {
+            .scan(Vec::new(), |buffer, chunk| {
                 futures::future::ready(match chunk {
-                    Ok(bytes) => {
-                        buffer.push_str(&String::from_utf8_lossy(&bytes));
-                        Some(Ok(buffer.clone()))
-                    }
+                    Ok(bytes) => Some(Ok(parse_stream_chunk(buffer, &bytes))),
                     Err(e) => Some(Err::<_, reqwest::Error>(e)),
                 })
             })
             .flat_map(|result| match result {
-                Ok(buffer) => {
-                    let events = parse_stream_buffer(&buffer);
-                    futures::stream::iter(events)
-                }
+                Ok(events) => futures::stream::iter(events),
                 Err(e) => {
                     let err = Err::<StreamEvent, AiError>(AiError::StreamError {
                         message: e.to_string(),
@@ -153,6 +147,15 @@ impl LanguageModel for CloudflareModel {
 
         Ok(Box::pin(stream))
     }
+}
+
+fn parse_stream_chunk(buffer: &mut Vec<u8>, bytes: &[u8]) -> Vec<Result<StreamEvent, AiError>> {
+    buffer.extend_from_slice(bytes);
+    let Some(end) = buffer.iter().rposition(|byte| *byte == b'\n') else {
+        return Vec::new();
+    };
+    let completed: Vec<u8> = buffer.drain(..=end).collect();
+    parse_stream_buffer(&String::from_utf8_lossy(&completed))
 }
 
 fn parse_stream_buffer(buffer: &str) -> Vec<Result<StreamEvent, AiError>> {
@@ -195,4 +198,33 @@ fn parse_stream_buffer(buffer: &str) -> Vec<Result<StreamEvent, AiError>> {
     }
 
     events
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_stream_chunk;
+    use rs_ai_core::StreamEvent;
+
+    #[test]
+    fn split_sse_chunks_emit_each_delta_once() {
+        let mut buffer = Vec::new();
+        assert!(parse_stream_chunk(
+            &mut buffer,
+            br#"data: {"choices":[{"delta":{"content":"hel"#,
+        )
+        .is_empty());
+        let events = parse_stream_chunk(
+            &mut buffer,
+            b"lo\"}}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"lo\"}}]}\n\n",
+        );
+        let deltas = events
+            .into_iter()
+            .filter_map(|event| match event.unwrap() {
+                StreamEvent::TextDelta { delta } => Some(delta),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(deltas, ["hello", "lo"]);
+    }
 }

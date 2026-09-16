@@ -46,3 +46,4 @@ urlencoding = "2.1"
 
 [dev-dependencies]
 tokio = { workspace = true }
+eventsource-stream = { workspace = true }

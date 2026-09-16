@@ -48,6 +48,7 @@ impl CacheMiddleware {
             .hash(&mut hasher);
         options.presence_penalty.map(f64::to_bits).hash(&mut hasher);
         options.seed.hash(&mut hasher);
+        options.max_steps.hash(&mut hasher);
 
         // Complex types — serialize to JSON for a stable, content-based hash.
         if let Ok(json) = serde_json::to_string(&options.tools) {
