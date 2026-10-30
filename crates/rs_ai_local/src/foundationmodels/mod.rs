@@ -945,7 +945,7 @@ extern "C" fn tool_dispatch(
 
 use async_trait::async_trait;
 use rs_ai_core::{
-    AiError, AiResult, AiStream, Capability, CapabilitySet, ContentPart, FinishReason,
+    AiError, AiResult, AiStream, Capability, CapabilitySet, FinishReason,
     GenerateOptions as TraitGenerateOptions, GenerateResult, LanguageModel, Prompt,
     ResponseMetadata as TraitResponseMetadata, SyntheticStreamer, Usage,
 };
@@ -966,22 +966,6 @@ impl FoundationModel {
             .with(Capability::LocalExecution)
             .with(Capability::PlatformNative);
         Self { capabilities }
-    }
-
-    fn prompt_to_text(prompt: &Prompt) -> String {
-        match prompt {
-            Prompt::Text(t) => t.clone(),
-            Prompt::Messages(msgs) => msgs
-                .iter()
-                .flat_map(|m| {
-                    m.content.iter().filter_map(|c| match c {
-                        ContentPart::Text { text } => Some(text.clone()),
-                        _ => None,
-                    })
-                })
-                .collect::<Vec<_>>()
-                .join("\n"),
-        }
     }
 
     fn build_config(options: &TraitGenerateOptions) -> GenerationOptions {
@@ -1026,10 +1010,10 @@ impl LanguageModel for FoundationModel {
         prompt: Prompt,
         options: TraitGenerateOptions,
     ) -> AiResult<GenerateResult> {
+        let prompt_text = crate::text_prompt(&prompt, "foundationmodels")?;
         Self::ensure_available().await?;
 
         let config = Self::build_config(&options);
-        let prompt_text = Self::prompt_to_text(&prompt);
         let start = std::time::Instant::now();
 
         let session = Session::new().map_err(|e| AiError::BridgeError {
@@ -1064,10 +1048,10 @@ impl LanguageModel for FoundationModel {
     }
 
     async fn stream(&self, prompt: Prompt, options: TraitGenerateOptions) -> AiResult<AiStream> {
+        let prompt_text = crate::text_prompt(&prompt, "foundationmodels")?;
         Self::ensure_available().await?;
 
         let config = Self::build_config(&options);
-        let prompt_text = Self::prompt_to_text(&prompt);
 
         let session = Session::new().map_err(|e| AiError::BridgeError {
             bridge: "foundationmodels".into(),
