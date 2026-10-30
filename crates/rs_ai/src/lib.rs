@@ -1205,10 +1205,7 @@ mod tests {
             .speak("hello")
             .await;
         server.abort();
-        assert!(
-            matches!(result, Err(AiError::UnsupportedCapability { .. })),
-            "{result:?}"
-        );
+        assert!(matches!(result, Err(AiError::UnsupportedCapability { .. })));
     }
 
     #[tokio::test]
@@ -1220,10 +1217,7 @@ mod tests {
             .transcribe(vec![1, 2, 3], "audio/wav")
             .await;
         server.abort();
-        assert!(
-            matches!(result, Err(AiError::UnsupportedCapability { .. })),
-            "{result:?}"
-        );
+        assert!(matches!(result, Err(AiError::UnsupportedCapability { .. })));
     }
 
     #[tokio::test]
