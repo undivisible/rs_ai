@@ -1,6 +1,6 @@
 use rs_ai_core::{
-    ContentPart, FinishReason, GenerateOptions, GenerateResult, ImageData, Message, Prompt,
-    ResponseMetadata, Role, ToolCallRequest, ToolChoice, Usage,
+    AiError, AiResult, ContentPart, FinishReason, GenerateOptions, GenerateResult, ImageData,
+    Message, Prompt, ResponseMetadata, Role, ToolCallRequest, ToolChoice, Usage,
 };
 
 use super::api_types::*;
@@ -9,20 +9,33 @@ use super::api_types::*;
 // Prompt -> API messages
 // ---------------------------------------------------------------------------
 
-pub(crate) fn prompt_to_messages(prompt: &Prompt) -> Vec<ChatMessage> {
+pub(crate) fn prompt_to_messages(prompt: &Prompt, provider: &str) -> AiResult<Vec<ChatMessage>> {
     match prompt {
-        Prompt::Text(text) => vec![ChatMessage {
+        Prompt::Text(text) => Ok(vec![ChatMessage {
             role: "user".to_string(),
             content: Some(serde_json::Value::String(text.clone())),
             name: None,
             tool_calls: None,
             tool_call_id: None,
-        }],
-        Prompt::Messages(msgs) => msgs.iter().map(message_to_chat).collect(),
+        }]),
+        Prompt::Messages(msgs) => msgs
+            .iter()
+            .map(|msg| message_to_chat(msg, provider))
+            .collect(),
     }
 }
 
-fn message_to_chat(msg: &Message) -> ChatMessage {
+fn message_to_chat(msg: &Message, provider: &str) -> AiResult<ChatMessage> {
+    if msg
+        .content
+        .iter()
+        .any(|part| matches!(part, ContentPart::File { .. }))
+    {
+        return Err(AiError::UnsupportedCapability {
+            capability: "file attachments".into(),
+            provider: provider.into(),
+        });
+    }
     let role = match msg.role {
         Role::System => "system",
         Role::User => "user",
@@ -57,7 +70,7 @@ fn message_to_chat(msg: &Message) -> ChatMessage {
                 tool_call_id = Some(result.call_id.clone());
                 Some(serde_json::Value::String(result.content.clone()))
             }
-            ContentPart::File { .. } => None, // files not supported by OpenAI chat API
+            ContentPart::File { .. } => None,
         })
         .collect();
 
@@ -82,7 +95,7 @@ fn message_to_chat(msg: &Message) -> ChatMessage {
         Some(serde_json::Value::Array(content_parts))
     };
 
-    ChatMessage {
+    Ok(ChatMessage {
         role: role.to_string(),
         content,
         name: msg.name.clone(),
@@ -92,7 +105,7 @@ fn message_to_chat(msg: &Message) -> ChatMessage {
             Some(tool_calls)
         },
         tool_call_id,
-    }
+    })
 }
 
 fn image_to_json(data: &ImageData) -> serde_json::Value {
@@ -128,11 +141,12 @@ fn image_to_json(data: &ImageData) -> serde_json::Value {
 
 pub(crate) fn options_to_request(
     model_id: &str,
+    provider: &str,
     prompt: &Prompt,
     options: &GenerateOptions,
     stream: bool,
-) -> ChatCompletionRequest {
-    let messages = prompt_to_messages(prompt);
+) -> AiResult<ChatCompletionRequest> {
+    let messages = prompt_to_messages(prompt, provider)?;
 
     let tools: Option<Vec<ChatTool>> = options.tools.as_ref().map(|tool_defs| {
         tool_defs
@@ -185,7 +199,7 @@ pub(crate) fn options_to_request(
         None
     };
 
-    ChatCompletionRequest {
+    Ok(ChatCompletionRequest {
         model: model_id.to_string(),
         messages,
         temperature: options.temperature,
@@ -202,7 +216,7 @@ pub(crate) fn options_to_request(
         stream_options,
         prompt_cache_key: None,
         prompt_cache_retention: None,
-    }
+    })
 }
 
 // ---------------------------------------------------------------------------
