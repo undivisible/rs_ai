@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD, Engine};
 use rs_ai_core::{
     AiError, AiResult, GeneratedFile, ResponseMetadata, Usage, VideoGenerationOptions, VideoModel,
     VideoResult,
@@ -9,6 +8,8 @@ use rs_ai_core::{
 pub struct GeminiVideoModel {
     api_key: String,
     model_id: String,
+    #[cfg(test)]
+    base_url: Option<String>,
 }
 
 impl GeminiVideoModel {
@@ -16,6 +17,8 @@ impl GeminiVideoModel {
         Self {
             api_key: api_key.into(),
             model_id: model_id.into(),
+            #[cfg(test)]
+            base_url: None,
         }
     }
 }
@@ -53,8 +56,15 @@ impl VideoModel for GeminiVideoModel {
             "parameters": params,
         });
 
+        #[cfg(test)]
+        let base_url = self
+            .base_url
+            .as_deref()
+            .unwrap_or("https://generativelanguage.googleapis.com/v1");
+        #[cfg(not(test))]
+        let base_url = "https://generativelanguage.googleapis.com/v1";
         let url = format!(
-            "https://generativelanguage.googleapis.com/v1/models/{}:predict?key={}",
+            "{base_url}/models/{}:predict?key={}",
             self.model_id, self.api_key
         );
 
@@ -89,7 +99,7 @@ impl VideoModel for GeminiVideoModel {
             .unwrap_or("");
         let file = GeneratedFile {
             base64: video_b64.to_string(),
-            bytes: STANDARD.decode(video_b64).unwrap_or_default(),
+            bytes: super::decode_media(video_b64)?,
             media_type: "video/mp4".into(),
         };
 
@@ -99,5 +109,37 @@ impl VideoModel for GeminiVideoModel {
             usage: Usage::default(),
             metadata: ResponseMetadata::default(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn rejects_missing_and_invalid_video_data() {
+        for body in [
+            r#"{"predictions":[{}]}"#,
+            r#"{"predictions":[{"bytesBase64Encoded":"%%%"}]}"#,
+            r#"{"predictions":[{"bytesBase64Encoded":""}]}"#,
+        ] {
+            let mut model = GeminiVideoModel::new("test", "test");
+            model.base_url = Some(super::super::test_response(body).await);
+            let result = model
+                .generate_video("hello", VideoGenerationOptions::default())
+                .await;
+            assert!(result.is_err());
+        }
+        let mut model = GeminiVideoModel::new("test", "test");
+        model.base_url = Some(
+            super::super::test_response(r#"{"predictions":[{"bytesBase64Encoded":"AQID"}]}"#).await,
+        );
+        let Ok(result) = model
+            .generate_video("hello", VideoGenerationOptions::default())
+            .await
+        else {
+            panic!("valid video response failed");
+        };
+        assert_eq!(result.video.bytes, [1, 2, 3]);
     }
 }
