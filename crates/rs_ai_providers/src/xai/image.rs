@@ -54,20 +54,14 @@ impl ImageModel for XaiImageModel {
 
         let mut images: Vec<GeneratedFile> = Vec::new();
         for img in &response.data {
-            let result = if let Some(b64) = &img.b64_json {
-                let media_type = detect_image_type(b64);
-                let bytes = base64::engine::general_purpose::STANDARD
+            let bytes = if let Some(b64) = &img.b64_json {
+                base64::engine::general_purpose::STANDARD
                     .decode(b64)
                     .map_err(|e| AiError::ProviderError {
                         provider: "xai".to_string(),
                         status: None,
                         message: format!("Failed to decode base64 image: {e}"),
-                    })?;
-                Some(GeneratedFile {
-                    base64: b64.clone(),
-                    bytes,
-                    media_type,
-                })
+                    })?
             } else if let Some(url) = &img.url {
                 let resp = reqwest::get(url)
                     .await
@@ -76,37 +70,41 @@ impl ImageModel for XaiImageModel {
                         status: None,
                         message: format!("Failed to fetch image from URL: {e}"),
                     })?;
-                let raw = resp.bytes().await.map_err(|e| AiError::ProviderError {
+                if !resp.status().is_success() {
+                    return Err(AiError::ProviderError {
+                        provider: "xai".to_string(),
+                        status: Some(resp.status().as_u16()),
+                        message: "Image download failed".to_string(),
+                    });
+                }
+                resp.bytes()
+                    .await
+                    .map_err(|e| AiError::ProviderError {
+                        provider: "xai".to_string(),
+                        status: None,
+                        message: format!("Failed to read image bytes: {e}"),
+                    })?
+                    .to_vec()
+            } else {
+                return Err(AiError::ProviderError {
                     provider: "xai".to_string(),
                     status: None,
-                    message: format!("Failed to read image bytes: {e}"),
-                })?;
-                let bytes = raw.to_vec();
-                let base64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-                let media_type = url_media_type(url).unwrap_or("image/png");
-                Some(GeneratedFile {
-                    base64,
-                    bytes,
-                    media_type: media_type.to_string(),
-                })
-            } else {
-                None
+                    message: "Image response has no data or URL".to_string(),
+                });
             };
-
-            if let Some(file) = result {
-                images.push(file);
-            }
-        }
-
-        if images.is_empty() {
-            return Err(AiError::ProviderError {
+            let media_type = detect_image_type(&bytes).ok_or_else(|| AiError::ProviderError {
                 provider: "xai".to_string(),
                 status: None,
-                message: "No valid image data in response".to_string(),
+                message: "Image response is not a supported image format".to_string(),
+            })?;
+            images.push(GeneratedFile {
+                base64: base64::engine::general_purpose::STANDARD.encode(&bytes),
+                bytes,
+                media_type: media_type.to_string(),
             });
         }
 
-        let first = images.remove(0);
+        let first = images[0].clone();
         Ok(ImageResult {
             image: first,
             images,
@@ -116,37 +114,100 @@ impl ImageModel for XaiImageModel {
     }
 }
 
-/// Detect media type from base64-encoded image data by checking magic bytes.
-fn detect_image_type(b64: &str) -> String {
-    // Decode first 16 bytes to check magic bytes
-    if let Ok(bytes) =
-        base64::engine::general_purpose::STANDARD.decode(&b64[..std::cmp::min(24, b64.len())])
-    {
-        if bytes.len() >= 4 {
-            match &bytes[..4] {
-                [0x89, b'P', b'N', b'G'] => return "image/png".to_string(),
-                [0xFF, 0xD8, _, _] => return "image/jpeg".to_string(),
-                [b'R', b'I', b'F', b'F'] => return "image/webp".to_string(),
-                [b'G', b'I', b'F', _] => return "image/gif".to_string(),
-                _ => {}
-            }
-        }
-    }
-    "image/png".to_string()
-}
-
-/// Infer media type from URL extension.
-fn url_media_type(url: &str) -> Option<&str> {
-    let lower = url.to_lowercase();
-    if lower.ends_with(".png") {
+fn detect_image_type(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some("image/png")
-    } else if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+    } else if bytes.starts_with(b"\xff\xd8\xff") {
         Some("image/jpeg")
-    } else if lower.ends_with(".webp") {
+    } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
         Some("image/webp")
-    } else if lower.ends_with(".gif") {
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
         Some("image/gif")
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    async fn generate_with_download(status: u16, download: &[u8]) -> AiResult<ImageResult> {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server_url = url.clone();
+        let download = download.to_vec();
+        let server = tokio::spawn(async move {
+            for _ in 0..2 {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = [0; 8192];
+                let size = stream.read(&mut request).await.unwrap();
+                let request = String::from_utf8_lossy(&request[..size]);
+                let (code, body) = if request.starts_with("POST ") {
+                    (
+                        200,
+                        format!(r#"{{"created":1,"data":[{{"url":"{server_url}/image.png"}}]}}"#)
+                            .into_bytes(),
+                    )
+                } else {
+                    assert!(!request.to_lowercase().contains("authorization:"));
+                    (status, download.clone())
+                };
+                let headers = format!(
+                    "HTTP/1.1 {code} test\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                stream.write_all(headers.as_bytes()).await.unwrap();
+                stream.write_all(&body).await.unwrap();
+            }
+        });
+        let mut client = XaiClient::new("test-key");
+        client.image_base_url = Some(url);
+        let model = XaiImageModel::new("test".into(), std::sync::Arc::new(client));
+        let result = model
+            .generate_image("test", ImageGenerationOptions::default())
+            .await;
+        server.abort();
+        result
+    }
+
+    #[tokio::test]
+    async fn rejects_error_pages_instead_of_returning_images() {
+        let (failed, html) = tokio::join!(
+            generate_with_download(403, b"access denied"),
+            generate_with_download(200, b"<html>not an image</html>"),
+        );
+        assert!(
+            matches!(
+                failed,
+                Err(AiError::ProviderError {
+                    status: Some(403),
+                    ..
+                })
+            ),
+            "{failed:?}"
+        );
+        assert!(html
+            .unwrap_err()
+            .to_string()
+            .contains("not a supported image"));
+    }
+
+    #[tokio::test]
+    async fn returns_downloaded_image_bytes() {
+        let jpeg = b"\xff\xd8\xffimage-data";
+        let result = generate_with_download(200, jpeg).await.unwrap();
+        assert_eq!(result.image.bytes, jpeg);
+        assert_eq!(result.image.media_type, "image/jpeg");
+        assert_eq!(result.images.len(), 1);
+        assert_eq!(result.images[0].bytes, jpeg);
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(&result.image.base64)
+                .unwrap(),
+            jpeg
+        );
     }
 }

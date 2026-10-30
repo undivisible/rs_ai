@@ -114,6 +114,8 @@ pub struct ImageData {
 pub struct XaiClient {
     http_client: HttpClient,
     api_key: String,
+    #[cfg(test)]
+    pub(super) image_base_url: Option<String>,
 }
 
 impl XaiClient {
@@ -121,6 +123,8 @@ impl XaiClient {
         Self {
             http_client: HttpClient::new(),
             api_key: api_key.into(),
+            #[cfg(test)]
+            image_base_url: None,
         }
     }
 
@@ -196,9 +200,13 @@ impl XaiClient {
         &self,
         request: ImageGenerationRequest,
     ) -> XaiResult<ImageGenerationResponse> {
+        #[cfg(test)]
+        let base_url = self.image_base_url.as_deref().unwrap_or(XAI_API_BASE);
+        #[cfg(not(test))]
+        let base_url = XAI_API_BASE;
         let response = self
             .http_client
-            .post(format!("{}/images/generations", XAI_API_BASE))
+            .post(format!("{}/images/generations", base_url))
             .bearer_auth(&self.api_key)
             .json(&request)
             .send()
