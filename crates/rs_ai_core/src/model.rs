@@ -752,10 +752,35 @@ impl LanguageModel for StreamEnabledModel {
     }
 
     async fn stream(&self, prompt: Prompt, options: GenerateOptions) -> AiResult<AiStream> {
-        use crate::stream::SyntheticStreamer;
+        use crate::stream::{StreamEvent, SyntheticStreamer};
+        use futures::StreamExt;
+
         let result = self.inner.generate(prompt, options).await?;
         let text = result.text.unwrap_or_default();
-        Ok(SyntheticStreamer::from_text(&text).stream())
+        let mut events = Vec::new();
+        if let Some(reasoning) = result.reasoning {
+            events.push(Ok(StreamEvent::ThinkingDelta { delta: reasoning }));
+        }
+        for call in result.tool_calls {
+            events.push(Ok(StreamEvent::ToolCallStart {
+                call_id: call.id.clone(),
+                tool_name: call.name,
+            }));
+            events.push(Ok(StreamEvent::ToolCallEnd {
+                call_id: call.id,
+                arguments: call.arguments,
+            }));
+        }
+        events.push(Ok(StreamEvent::MessageEnd {
+            finish_reason: result.finish_reason,
+            usage: Some(result.usage),
+        }));
+        let text_stream = SyntheticStreamer::from_text(&text)
+            .stream()
+            .filter(|event| {
+                futures::future::ready(!matches!(event, Ok(StreamEvent::MessageEnd { .. })))
+            });
+        Ok(Box::pin(text_stream.chain(futures::stream::iter(events))))
     }
 }
 

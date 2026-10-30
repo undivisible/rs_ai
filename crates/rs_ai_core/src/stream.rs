@@ -99,6 +99,7 @@ impl StreamCollector {
     /// Consume a stream and assemble a complete `GenerateResult`.
     pub async fn collect(mut stream: AiStream) -> AiResult<GenerateResult> {
         let mut text = String::new();
+        let mut reasoning: Option<String> = None;
         let mut tool_calls: Vec<ToolCallRequest> = Vec::new();
         let mut finish_reason = FinishReason::Unknown;
         let mut usage = Usage::default();
@@ -112,6 +113,9 @@ impl StreamCollector {
             match event {
                 StreamEvent::TextDelta { delta } => {
                     text.push_str(&delta);
+                }
+                StreamEvent::ThinkingDelta { delta } => {
+                    reasoning.get_or_insert_with(String::new).push_str(&delta);
                 }
                 StreamEvent::ToolCallStart { call_id, tool_name } => {
                     pending_tool_calls.insert(call_id, (tool_name, String::new()));
@@ -156,7 +160,7 @@ impl StreamCollector {
             usage,
             metadata: ResponseMetadata::default(),
             steps: Vec::new(),
-            reasoning: None,
+            reasoning,
         })
     }
 }
@@ -198,9 +202,15 @@ impl SyntheticStreamer {
                 } else {
                     end
                 };
-                if end == pos {
-                    break;
-                }
+                let end = if end == pos {
+                    pos + text[pos..]
+                        .chars()
+                        .next()
+                        .expect("position is within text")
+                        .len_utf8()
+                } else {
+                    end
+                };
                 v.push(Ok(StreamEvent::TextDelta {
                     delta: text[pos..end].to_owned(),
                 }));
