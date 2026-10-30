@@ -1,6 +1,6 @@
 use rs_ai_core::{
-    ContentPart, FinishReason, GenerateOptions, GenerateResult, ImageData, Message, Prompt,
-    ResponseMetadata, Role, ToolCallRequest, ToolChoice, Usage,
+    AiError, AiResult, ContentPart, FinishReason, GenerateOptions, GenerateResult, ImageData,
+    Message, Prompt, ResponseMetadata, Role, ToolCallRequest, ToolChoice, Usage,
 };
 
 use super::api_types::*;
@@ -212,7 +212,7 @@ pub(crate) fn options_to_request(
 pub(crate) fn response_to_result(
     response: ChatCompletionResponse,
     provider: &str,
-) -> GenerateResult {
+) -> AiResult<GenerateResult> {
     let choice = response.choices.into_iter().next();
 
     let (text, tool_calls, finish_reason) = match choice {
@@ -235,15 +235,17 @@ pub(crate) fn response_to_result(
                 .unwrap_or_default()
                 .into_iter()
                 .map(|tc| {
-                    let args: serde_json::Value =
-                        serde_json::from_str(&tc.function.arguments).unwrap_or_default();
-                    ToolCallRequest {
+                    let args: serde_json::Value = serde_json::from_str(&tc.function.arguments)
+                        .map_err(|e| {
+                            AiError::Serialization(format!("Malformed tool call arguments: {e}"))
+                        })?;
+                    Ok(ToolCallRequest {
                         id: tc.id,
                         name: tc.function.name,
                         arguments: args,
-                    }
+                    })
                 })
-                .collect();
+                .collect::<AiResult<_>>()?;
 
             let finish_reason = parse_finish_reason(c.finish_reason.as_deref());
             (text, tool_calls, finish_reason)
@@ -260,7 +262,7 @@ pub(crate) fn response_to_result(
         })
         .unwrap_or_default();
 
-    GenerateResult {
+    Ok(GenerateResult {
         text,
         tool_calls,
         finish_reason,
@@ -274,7 +276,7 @@ pub(crate) fn response_to_result(
         },
         steps: Vec::new(),
         reasoning: None,
-    }
+    })
 }
 
 // ---------------------------------------------------------------------------
