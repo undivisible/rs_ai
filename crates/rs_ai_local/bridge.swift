@@ -480,12 +480,9 @@ func sessionUpdateProfile(
     #endif
 }
 
-// ─── Multimodal attachment (Xcode 27+) ────────────────────────
+// ─── Multimodal attachment ───────────────────────────────────
 
-/// Sends a prompt with an attached image and calls `callback` exactly once when done.
-///
-/// Requires macOS 27+ (Xcode 27 SDK) where `Prompt.Attachment` is available.
-/// Falls back with a descriptive error on older SDKs.
+/// Reports that image attachments are not supported and calls `callback` exactly once.
 ///
 /// - `imageBytes`: raw image file bytes (JPEG, PNG, etc.).
 /// - `imageLen`: byte count.
@@ -502,55 +499,9 @@ func sessionRespondWithAttachment(
     callbackCtx: UnsafeMutableRawPointer?,
     callback: ResultCallback
 ) {
-    #if canImport(FoundationModels)
-    guard #available(macOS 27.0, *) else {
-        "Multimodal attachments require macOS 27 or later".withCString { callback(callbackCtx, nil, $0) }
-        return
+    "Image attachments are not supported by the Foundation Models bridge".withCString {
+        callback(callbackCtx, nil, $0)
     }
-
-    let holder = Unmanaged<SessionHolder>.fromOpaque(handlePtr).takeUnretainedValue()
-    let text = String(cString: promptPtr)
-    let _ = String(cString: imageMimePtr) // mime hint, unused in current SDK
-    let data = Data(bytes: imageBytes, count: imageLen)
-
-    // Convert raw bytes to platform image
-    #if canImport(AppKit)
-    let nsImage = NSImage(data: data)
-    guard let nsImage = nsImage else {
-        "Failed to decode image data".withCString { callback(callbackCtx, nil, $0) }
-        return
-    }
-    // ponytail: Prompt.Attachment API not available in macOS 27 SDK yet.
-    // Stub returns the prompt text without attachment for now.
-    let _ = nsImage
-    #elseif canImport(UIKit)
-    let uiImage = UIImage(data: data)
-    guard let uiImage = uiImage else {
-        "Failed to decode image data".withCString { callback(callbackCtx, nil, $0) }
-        return
-    }
-    let _ = uiImage
-    #else
-    "Unsupported platform for image attachment".withCString { callback(callbackCtx, nil, $0) }
-    return
-    #endif
-
-    // Fall back to text-only respond while Prompt.Attachment API is unavailable.
-    var options = GenerationOptions()
-    if temperature >= 0.0 { options.temperature = temperature }
-    if maxTokens >= 0     { options.maximumResponseTokens = Int(maxTokens) }
-
-    Task {
-        do {
-            let response = try await holder.session.respond(to: text, options: options)
-            response.content.withCString { callback(callbackCtx, $0, nil) }
-        } catch {
-            error.localizedDescription.withCString { callback(callbackCtx, nil, $0) }
-        }
-    }
-    #else
-    "FoundationModels framework not available in this build".withCString { callback(callbackCtx, nil, $0) }
-    #endif
 }
 
 // ─── Streaming structured generation (Xcode 27+) ──────────────
