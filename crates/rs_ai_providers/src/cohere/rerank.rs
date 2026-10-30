@@ -70,7 +70,6 @@ impl RerankingModel for CohereRerankingModel {
         #[derive(serde::Deserialize)]
         struct CohereRerankResult {
             index: usize,
-            #[serde(default)]
             relevance_score: f64,
             document: Option<CohereDocument>,
         }
