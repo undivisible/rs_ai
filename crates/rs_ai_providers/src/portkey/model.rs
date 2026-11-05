@@ -24,8 +24,7 @@ impl PortkeyModel {
         let capabilities = CapabilitySet::new()
             .with(Capability::TextInput)
             .with(Capability::TextOutput)
-            .with(Capability::Streaming)
-            .with(Capability::ToolCalling);
+            .with(Capability::Streaming);
 
         Self {
             model_id,
@@ -49,11 +48,13 @@ impl LanguageModel for PortkeyModel {
         &self.capabilities
     }
 
-    async fn generate(
-        &self,
-        prompt: Prompt,
-        _options: GenerateOptions,
-    ) -> AiResult<GenerateResult> {
+    async fn generate(&self, prompt: Prompt, options: GenerateOptions) -> AiResult<GenerateResult> {
+        if options.tools.is_some() || options.tool_choice.is_some() {
+            return Err(AiError::UnsupportedCapability {
+                capability: "tool calling".to_string(),
+                provider: "portkey".to_string(),
+            });
+        }
         let text = match prompt {
             Prompt::Text(t) => t,
             _ => {
@@ -108,8 +109,14 @@ impl LanguageModel for PortkeyModel {
     async fn stream(
         &self,
         prompt: Prompt,
-        _options: GenerateOptions,
+        options: GenerateOptions,
     ) -> AiResult<rs_ai_core::AiStream> {
+        if options.tools.is_some() || options.tool_choice.is_some() {
+            return Err(AiError::UnsupportedCapability {
+                capability: "tool calling".to_string(),
+                provider: "portkey".to_string(),
+            });
+        }
         let text = match prompt {
             Prompt::Text(t) => t,
             _ => {
