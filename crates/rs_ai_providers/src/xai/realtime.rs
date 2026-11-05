@@ -236,11 +236,17 @@ impl RealtimeSession for GrokVoiceSession {
                             return Some(RealtimeEvent::TextDone { text });
                         }
                         "response.audio.delta" => {
-                            let b64 = parsed["delta"].as_str().unwrap_or("");
-                            let delta = base64::engine::general_purpose::STANDARD
-                                .decode(b64)
-                                .unwrap_or_default();
-                            return Some(RealtimeEvent::AudioDelta { delta });
+                            let delta = parsed["delta"].as_str().and_then(|b64| {
+                                base64::engine::general_purpose::STANDARD.decode(b64).ok()
+                            });
+                            return Some(match delta {
+                                Some(delta) if !delta.is_empty() => {
+                                    RealtimeEvent::AudioDelta { delta }
+                                }
+                                _ => RealtimeEvent::Error {
+                                    message: "Invalid or empty xAI realtime audio delta".into(),
+                                },
+                            });
                         }
                         "response.function_call_arguments.done" | "response.tool_call" => {
                             let name = parsed["name"].as_str().unwrap_or("").to_string();
@@ -287,4 +293,48 @@ impl RealtimeSession for GrokVoiceSession {
 /// Create an xAI Grok Voice Agent session with the given config.
 pub async fn create_grok_voice_session(config: GrokVoiceConfig) -> AiResult<GrokVoiceSession> {
     GrokVoiceSession::connect(config).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn audio_events_reject_malformed_payloads() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(socket).await.unwrap();
+            for event in [
+                r#"{"type":"response.audio.delta","delta":"AQIDBA=="}"#,
+                r#"{"type":"response.audio.delta","delta":"not base64!"}"#,
+                r#"{"type":"response.audio.delta"}"#,
+                r#"{"type":"response.audio.delta","delta":""}"#,
+            ] {
+                socket.send(WsMessage::Text(event.into())).await.unwrap();
+            }
+        });
+        let (socket, _) = connect_async(format!("ws://{address}")).await.unwrap();
+        let mut session = GrokVoiceSession {
+            write: Arc::new(Mutex::new(socket)),
+            model: "test".into(),
+        };
+        assert!(
+            matches!(session.recv().await, Some(RealtimeEvent::AudioDelta { delta }) if delta == [1, 2, 3, 4])
+        );
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::Error { .. })
+        ));
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::Error { .. })
+        ));
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::Error { .. })
+        ));
+        server.await.unwrap();
+    }
 }
