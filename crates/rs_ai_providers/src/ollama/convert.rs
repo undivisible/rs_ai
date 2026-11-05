@@ -1,5 +1,6 @@
 use rs_ai_core::{
-    ContentPart, GenerateOptions, ImageData, Message, Role, ToolCallRequest, ToolDefinition,
+    AiError, AiResult, ContentPart, GenerateOptions, ImageData, Message, Role, ToolCallRequest,
+    ToolDefinition,
 };
 
 use super::api_types::{
@@ -7,11 +8,11 @@ use super::api_types::{
 };
 
 /// Convert a slice of `rs_ai_core::Message` into Ollama messages.
-pub(crate) fn convert_messages(messages: &[Message]) -> Vec<OllamaMessage> {
+pub(crate) fn convert_messages(messages: &[Message]) -> AiResult<Vec<OllamaMessage>> {
     messages.iter().map(convert_message).collect()
 }
 
-fn convert_message(msg: &Message) -> OllamaMessage {
+fn convert_message(msg: &Message) -> AiResult<OllamaMessage> {
     let role = match msg.role {
         Role::System => "system",
         Role::User => "user",
@@ -28,18 +29,17 @@ fn convert_message(msg: &Message) -> OllamaMessage {
             ContentPart::Text { text } => {
                 text_parts.push(text.clone());
             }
-            ContentPart::Image { data } => {
-                match data {
-                    ImageData::Base64 { data, .. } => {
-                        images.push(data.clone());
-                    }
-                    ImageData::Url { url, .. } => {
-                        // Ollama only supports base64 images natively. Pass the URL as text
-                        // as a fallback; real usage should provide base64-encoded images.
-                        text_parts.push(format!("[image: {}]", url));
-                    }
+            ContentPart::Image { data } => match data {
+                ImageData::Base64 { data, .. } => {
+                    images.push(data.clone());
                 }
-            }
+                ImageData::Url { .. } => {
+                    return Err(AiError::UnsupportedCapability {
+                        capability: "URL images; use base64 image data".into(),
+                        provider: "ollama".into(),
+                    });
+                }
+            },
             ContentPart::ToolCall { call } => {
                 tool_calls.push(OllamaToolCall {
                     function: OllamaFunctionCall {
@@ -52,12 +52,15 @@ fn convert_message(msg: &Message) -> OllamaMessage {
                 text_parts.push(result.content.clone());
             }
             ContentPart::File { .. } => {
-                // Ollama does not support file parts; skip.
+                return Err(AiError::UnsupportedCapability {
+                    capability: "file attachments".into(),
+                    provider: "ollama".into(),
+                });
             }
         }
     }
 
-    OllamaMessage {
+    Ok(OllamaMessage {
         role: role.to_string(),
         content: text_parts.join("\n"),
         images: if images.is_empty() {
@@ -71,7 +74,7 @@ fn convert_message(msg: &Message) -> OllamaMessage {
             Some(tool_calls)
         },
         thinking: None,
-    }
+    })
 }
 
 /// Convert `GenerateOptions` into `OllamaOptions` (returns `None` if nothing is set).

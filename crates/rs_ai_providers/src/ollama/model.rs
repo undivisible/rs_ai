@@ -51,11 +51,11 @@ impl OllamaModel {
         prompt: rs_ai_core::Prompt,
         options: &GenerateOptions,
         stream: bool,
-    ) -> OllamaChatRequest {
+    ) -> AiResult<OllamaChatRequest> {
         let conversation = prompt.into_messages();
-        let messages = convert::convert_messages(&conversation);
+        let messages = convert::convert_messages(&conversation)?;
 
-        OllamaChatRequest {
+        Ok(OllamaChatRequest {
             model: self.model_id.clone(),
             messages,
             stream,
@@ -63,7 +63,7 @@ impl OllamaModel {
             format: options.output_schema.as_ref().map(|s| s.as_value().clone()),
             tools: convert::convert_tools(options.tools.as_deref()),
             think: options.thinking.as_ref().map(|_| true),
-        }
+        })
     }
 
     /// Parse token usage from an Ollama chat response.
@@ -178,7 +178,7 @@ impl LanguageModel for OllamaModel {
         prompt: rs_ai_core::Prompt,
         options: GenerateOptions,
     ) -> AiResult<GenerateResult> {
-        let request = self.build_chat_request(prompt, &options, false);
+        let request = self.build_chat_request(prompt, &options, false)?;
         self.do_generate(request).await
     }
 
@@ -187,7 +187,7 @@ impl LanguageModel for OllamaModel {
         prompt: rs_ai_core::Prompt,
         options: GenerateOptions,
     ) -> AiResult<AiStream> {
-        let request = self.build_chat_request(prompt, &options, true);
+        let request = self.build_chat_request(prompt, &options, true)?;
         let url = format!("{}/api/chat", self.base_url);
 
         let resp = self
