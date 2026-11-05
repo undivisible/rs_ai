@@ -76,7 +76,7 @@ impl LanguageModel for GeminiNanoModel {
         self.ensure_available().await?;
 
         let config = Self::build_config(&options);
-        let parts = extract_content_parts(prompt);
+        let parts = extract_content_parts(prompt)?;
         let start = std::time::Instant::now();
 
         let result = self
@@ -115,17 +115,16 @@ impl LanguageModel for GeminiNanoModel {
 
 /// Extract content parts from a [`Prompt`] for the bridge.
 ///
-/// Handles text and base64-encoded images. URL images are skipped with a
-/// warning log (would require downloading before passing to ML Kit).
-fn extract_content_parts(prompt: Prompt) -> Vec<NanoContentPart> {
+/// Handles text and base64-encoded images, rejecting unsupported parts.
+fn extract_content_parts(prompt: Prompt) -> AiResult<Vec<NanoContentPart>> {
     match prompt {
-        Prompt::Text(text) => vec![NanoContentPart::Text(text)],
+        Prompt::Text(text) => Ok(vec![NanoContentPart::Text(text)]),
         Prompt::Messages(messages) => messages_to_parts(&messages),
     }
 }
 
 /// Convert [`Message`]s into [`NanoContentPart`]s.
-fn messages_to_parts(messages: &[Message]) -> Vec<NanoContentPart> {
+fn messages_to_parts(messages: &[Message]) -> AiResult<Vec<NanoContentPart>> {
     let mut parts = Vec::new();
 
     for msg in messages {
@@ -145,22 +144,24 @@ fn messages_to_parts(messages: &[Message]) -> Vec<NanoContentPart> {
                             mime_type: media_type.clone(),
                         });
                     }
-                    ImageData::Url { url, .. } => {
-                        // ponytail: skip URL images — would need to download
-                        // before passing bitmap to ML Kit. Add when URL fetch
-                        // is plumbed through the bridge.
-                        tracing::warn!(
-                            "Skipping URL image in Gemini Nano prompt: {url}. \
-                             Only base64-encoded images are supported."
-                        );
+                    ImageData::Url { .. } => {
+                        return Err(AiError::UnsupportedCapability {
+                            capability: "URL images; use base64 image data".into(),
+                            provider: "gemini_nano".into(),
+                        });
                     }
                 },
-                _ => {
-                    // Skip tool calls, tool results, files
+                ContentPart::File { .. }
+                | ContentPart::ToolCall { .. }
+                | ContentPart::ToolResult { .. } => {
+                    return Err(AiError::UnsupportedCapability {
+                        capability: "file attachments or tool messages".into(),
+                        provider: "gemini_nano".into(),
+                    });
                 }
             }
         }
     }
 
-    parts
+    Ok(parts)
 }
