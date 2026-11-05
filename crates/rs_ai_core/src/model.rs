@@ -633,18 +633,42 @@ pub enum RealtimeEvent {
     TextDone { text: String },
     /// Audio chunk received (PCM or opus bytes).
     AudioDelta { delta: Vec<u8> },
-    /// Tool call from the model.
+    /// Tool call from the model. Wait for `ToolCallBatchComplete` before
+    /// executing it; an interrupted response can contain incomplete calls.
     ToolCall {
         id: String,
         name: String,
         arguments: serde_json::Value,
     },
+    /// All tool calls in the current batch have been delivered.
+    ToolCallBatchComplete,
     /// Tool execution result.
     ToolResult { call_id: String, content: String },
+    /// Transcription of input audio.
+    InputTranscription {
+        text: String,
+        finished: Option<bool>,
+    },
+    /// Transcription of output audio.
+    OutputTranscription {
+        text: String,
+        finished: Option<bool>,
+    },
     /// The session encountered an error.
     Error { message: String },
-    /// Session closed.
-    Done,
+    /// The model finished generating. The turn may still be active.
+    GenerationComplete,
+    /// The provider marked the turn complete; the session remains open.
+    /// An interrupted turn may also produce this event.
+    TurnComplete,
+    /// Voice activity was detected. It does not by itself confirm cancellation.
+    SpeechStarted,
+    /// The current model response was interrupted. Discard queued playback.
+    Interrupted,
+    /// The provider cancelled the specified outstanding tool calls.
+    ToolCallsCancelled { ids: Vec<String> },
+    /// The connection closed. The next call to `recv` returns `None`.
+    SessionClosed,
 }
 
 /// A bidirectional realtime session for voice/text interaction.
@@ -664,6 +688,24 @@ pub trait RealtimeSession: Send + Sync {
 
     /// Send audio bytes to the model.
     async fn send_audio(&mut self, audio: Vec<u8>, mime_type: &str) -> AiResult<()>;
+
+    /// Submit a tool call result. After `ToolCallBatchComplete`, submit every
+    /// result in the batch before `resume`.
+    ///
+    /// `name` is the name from the corresponding [`RealtimeEvent::ToolCall`].
+    /// A provider may buffer the result until `resume`.
+    /// Gemini wraps non-object results in an object under the `result` key.
+    async fn send_tool_result(
+        &mut self,
+        call_id: &str,
+        name: &str,
+        result: serde_json::Value,
+    ) -> AiResult<()>;
+
+    /// Continue after submitting all results in a tool-call batch.
+    ///
+    /// Providers that continue automatically may implement this as a no-op.
+    async fn resume(&mut self) -> AiResult<()>;
 
     /// Receive the next event from the session. Blocks until an event is available.
     async fn recv(&mut self) -> Option<RealtimeEvent>;

@@ -11,6 +11,7 @@
 use base64::Engine;
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::Mutex;
@@ -33,6 +34,9 @@ pub enum LiveError {
     /// A JSON serialization or deserialization error.
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
+    /// Invalid base64 audio data received from the server.
+    #[error("Invalid audio data: {0}")]
+    AudioDecode(#[from] base64::DecodeError),
     /// A URL parsing error.
     #[error("URL parse error: {0}")]
     Url(#[from] url::ParseError),
@@ -280,6 +284,14 @@ pub struct FunctionResponse {
     pub response: serde_json::Value,
 }
 
+fn normalize_tool_result(result: serde_json::Value) -> serde_json::Value {
+    if result.is_object() {
+        result
+    } else {
+        serde_json::json!({ "result": result })
+    }
+}
+
 // ── Server → Client messages ──────────────────────────────────────────────────
 
 /// A message received from the server.
@@ -308,6 +320,19 @@ pub struct ServerContent {
     pub interrupted: Option<bool>,
     /// Whether generation is complete.
     pub generation_complete: Option<bool>,
+    /// Transcription of the user's input audio.
+    pub input_transcription: Option<Transcription>,
+    /// Transcription of the model's output audio.
+    pub output_transcription: Option<Transcription>,
+}
+
+/// Text transcription of audio.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Transcription {
+    /// Transcribed text.
+    pub text: String,
+    /// Whether the transcription is finished, when provided.
+    pub finished: Option<bool>,
 }
 
 /// A turn produced by the model.
@@ -379,10 +404,28 @@ pub enum LiveEvent {
     AudioDelta(Vec<u8>),
     /// The model's turn is complete.
     TurnComplete,
+    /// Model generation is complete, potentially before the turn is complete.
+    GenerationComplete,
     /// The generation was interrupted.
     Interrupted,
     /// The model requested tool calls.
     ToolCall(Vec<FunctionCallPart>),
+    /// All calls in a tool-call batch have been delivered.
+    ToolCallBatchComplete,
+    /// Transcription of the user's input audio.
+    InputTranscription {
+        /// Transcribed text.
+        text: String,
+        /// Whether the transcription is finished, when provided.
+        finished: Option<bool>,
+    },
+    /// Transcription of the model's output audio.
+    OutputTranscription {
+        /// Transcribed text.
+        text: String,
+        /// Whether the transcription is finished, when provided.
+        finished: Option<bool>,
+    },
     /// Tool calls were cancelled.
     ToolCallCancelled(Vec<String>),
 }
@@ -427,6 +470,7 @@ type WsStream = futures::stream::SplitStream<
 pub struct LiveSession {
     sink: Arc<Mutex<WsSink>>,
     stream: Arc<Mutex<WsStream>>,
+    pending: VecDeque<LiveResult<LiveEvent>>,
 }
 
 impl LiveSession {
@@ -449,6 +493,7 @@ impl LiveSession {
         Ok(Self {
             sink: Arc::new(Mutex::new(sink)),
             stream: Arc::new(Mutex::new(stream)),
+            pending: VecDeque::new(),
         })
     }
 
@@ -514,6 +559,7 @@ impl LiveSession {
     }
 
     /// Return a tool/function result to the model.
+    /// Non-object results are wrapped in an object under the `result` key.
     pub async fn send_tool_result(
         &mut self,
         call_id: &str,
@@ -525,7 +571,7 @@ impl LiveSession {
                 function_responses: vec![FunctionResponse {
                     id: call_id.to_string(),
                     name: name.to_string(),
-                    response: result,
+                    response: normalize_tool_result(result),
                 }],
             },
         };
@@ -534,6 +580,9 @@ impl LiveSession {
 
     /// Receive the next high-level event.
     pub async fn recv(&mut self) -> Option<LiveResult<LiveEvent>> {
+        if let Some(event) = self.pending.pop_front() {
+            return Some(event);
+        }
         let mut stream = self.stream.lock().await;
         loop {
             let msg = stream.next().await?;
@@ -543,8 +592,9 @@ impl LiveSession {
                         Ok(m) => m,
                         Err(e) => return Some(Err(LiveError::Json(e))),
                     };
-                    if let Some(event) = Self::decode(server_msg) {
-                        return Some(Ok(event));
+                    self.pending.extend(Self::decode(server_msg));
+                    if let Some(event) = self.pending.pop_front() {
+                        return Some(event);
                     }
                     // Unknown/empty message — keep looping.
                 }
@@ -555,48 +605,70 @@ impl LiveSession {
         }
     }
 
-    fn decode(msg: ServerMessage) -> Option<LiveEvent> {
+    fn decode(msg: ServerMessage) -> VecDeque<LiveResult<LiveEvent>> {
+        let mut events = VecDeque::new();
         if msg.setup_complete.is_some() {
-            return Some(LiveEvent::SetupComplete);
-        }
-        if let Some(tc) = msg.tool_call {
-            return Some(LiveEvent::ToolCall(tc.function_calls));
-        }
-        if let Some(tcc) = msg.tool_call_cancellation {
-            return Some(LiveEvent::ToolCallCancelled(tcc.ids));
+            events.push_back(Ok(LiveEvent::SetupComplete));
         }
         if let Some(sc) = msg.server_content {
-            if sc.interrupted == Some(true) {
-                return Some(LiveEvent::Interrupted);
-            }
+            let interrupted = sc.interrupted == Some(true);
             if let Some(turn) = sc.model_turn {
-                // Collect text first
-                let text: String = turn
-                    .parts
-                    .iter()
-                    .filter_map(|p| p.text.as_deref())
-                    .collect();
-                if !text.is_empty() {
-                    return Some(LiveEvent::TextDelta(text));
-                }
-                // Then audio
-                for part in &turn.parts {
-                    if let Some(inline) = &part.inline_data {
+                let mut has_calls = false;
+                for part in turn.parts {
+                    if let Some(text) = part.text {
+                        events.push_back(Ok(LiveEvent::TextDelta(text)));
+                    }
+                    if let Some(inline) = part.inline_data {
                         if inline.mime_type.starts_with("audio/") {
-                            if let Ok(pcm) =
-                                base64::engine::general_purpose::STANDARD.decode(&inline.data)
-                            {
-                                return Some(LiveEvent::AudioDelta(pcm));
-                            }
+                            events.push_back(
+                                base64::engine::general_purpose::STANDARD
+                                    .decode(&inline.data)
+                                    .map(LiveEvent::AudioDelta)
+                                    .map_err(LiveError::AudioDecode),
+                            );
                         }
                     }
+                    if let Some(call) = part.function_call {
+                        has_calls = true;
+                        events.push_back(Ok(LiveEvent::ToolCall(vec![call])));
+                    }
+                }
+                if has_calls && !interrupted {
+                    events.push_back(Ok(LiveEvent::ToolCallBatchComplete));
                 }
             }
+            if let Some(transcription) = sc.input_transcription {
+                events.push_back(Ok(LiveEvent::InputTranscription {
+                    text: transcription.text,
+                    finished: transcription.finished,
+                }));
+            }
+            if let Some(transcription) = sc.output_transcription {
+                events.push_back(Ok(LiveEvent::OutputTranscription {
+                    text: transcription.text,
+                    finished: transcription.finished,
+                }));
+            }
+            if interrupted {
+                events.push_back(Ok(LiveEvent::Interrupted));
+            }
+            if sc.generation_complete == Some(true) {
+                events.push_back(Ok(LiveEvent::GenerationComplete));
+            }
             if sc.turn_complete == Some(true) {
-                return Some(LiveEvent::TurnComplete);
+                events.push_back(Ok(LiveEvent::TurnComplete));
             }
         }
-        None
+        if let Some(tc) = msg.tool_call {
+            if !tc.function_calls.is_empty() {
+                events.push_back(Ok(LiveEvent::ToolCall(tc.function_calls)));
+                events.push_back(Ok(LiveEvent::ToolCallBatchComplete));
+            }
+        }
+        if let Some(tcc) = msg.tool_call_cancellation {
+            events.push_back(Ok(LiveEvent::ToolCallCancelled(tcc.ids)));
+        }
+        events
     }
 
     async fn send_raw<T: Serialize>(&mut self, msg: &T) -> LiveResult<()> {
@@ -617,6 +689,9 @@ use rs_ai_core::{AiResult, RealtimeEvent};
 pub struct GeminiLiveSessionAdapter {
     inner: LiveSession,
     model: String,
+    pending: VecDeque<RealtimeEvent>,
+    tool_responses: Vec<FunctionResponse>,
+    closed: bool,
 }
 
 impl GeminiLiveSessionAdapter {
@@ -625,6 +700,9 @@ impl GeminiLiveSessionAdapter {
         Self {
             inner: session,
             model: model.into(),
+            pending: VecDeque::new(),
+            tool_responses: Vec::new(),
+            closed: false,
         }
     }
 }
@@ -659,7 +737,47 @@ impl rs_ai_core::RealtimeSession for GeminiLiveSessionAdapter {
             })
     }
 
+    async fn send_tool_result(
+        &mut self,
+        call_id: &str,
+        name: &str,
+        result: serde_json::Value,
+    ) -> AiResult<()> {
+        self.tool_responses.push(FunctionResponse {
+            id: call_id.to_string(),
+            name: name.to_string(),
+            response: normalize_tool_result(result),
+        });
+        Ok(())
+    }
+
+    async fn resume(&mut self) -> AiResult<()> {
+        if self.tool_responses.is_empty() {
+            return Ok(());
+        }
+        let msg = ToolResponseMessage {
+            tool_response: ToolResponse {
+                function_responses: self.tool_responses.clone(),
+            },
+        };
+        self.inner
+            .send_raw(&msg)
+            .await
+            .map_err(|e| rs_ai_core::AiError::BridgeError {
+                bridge: "gemini_live".into(),
+                message: e.to_string(),
+            })?;
+        self.tool_responses.clear();
+        Ok(())
+    }
+
     async fn recv(&mut self) -> Option<RealtimeEvent> {
+        if let Some(event) = self.pending.pop_front() {
+            return Some(event);
+        }
+        if self.closed {
+            return None;
+        }
         loop {
             match self.inner.recv().await {
                 Some(Ok(LiveEvent::TextDelta(text))) => {
@@ -669,24 +787,45 @@ impl rs_ai_core::RealtimeSession for GeminiLiveSessionAdapter {
                     return Some(RealtimeEvent::AudioDelta { delta: pcm });
                 }
                 Some(Ok(LiveEvent::ToolCall(calls))) => {
-                    if let Some(first) = calls.into_iter().next() {
-                        return Some(RealtimeEvent::ToolCall {
-                            id: first.id,
-                            name: first.name,
-                            arguments: first.args,
-                        });
+                    self.pending
+                        .extend(calls.into_iter().map(|call| RealtimeEvent::ToolCall {
+                            id: call.id,
+                            name: call.name,
+                            arguments: call.args,
+                        }));
+                    if let Some(event) = self.pending.pop_front() {
+                        return Some(event);
                     }
                 }
+                Some(Ok(LiveEvent::ToolCallBatchComplete)) => {
+                    return Some(RealtimeEvent::ToolCallBatchComplete);
+                }
+                Some(Ok(LiveEvent::InputTranscription { text, finished })) => {
+                    return Some(RealtimeEvent::InputTranscription { text, finished });
+                }
+                Some(Ok(LiveEvent::OutputTranscription { text, finished })) => {
+                    return Some(RealtimeEvent::OutputTranscription { text, finished });
+                }
                 Some(Ok(LiveEvent::SetupComplete)) => continue,
-                Some(Ok(LiveEvent::TurnComplete)) => continue,
-                Some(Ok(LiveEvent::Interrupted)) => continue,
-                Some(Ok(LiveEvent::ToolCallCancelled(_))) => continue,
+                Some(Ok(LiveEvent::TurnComplete)) => return Some(RealtimeEvent::TurnComplete),
+                Some(Ok(LiveEvent::GenerationComplete)) => {
+                    return Some(RealtimeEvent::GenerationComplete)
+                }
+                Some(Ok(LiveEvent::Interrupted)) => return Some(RealtimeEvent::Interrupted),
+                Some(Ok(LiveEvent::ToolCallCancelled(ids))) => {
+                    self.tool_responses
+                        .retain(|response| !ids.contains(&response.id));
+                    return Some(RealtimeEvent::ToolCallsCancelled { ids });
+                }
                 Some(Err(e)) => {
                     return Some(RealtimeEvent::Error {
                         message: e.to_string(),
                     });
                 }
-                None => return None,
+                None => {
+                    self.closed = true;
+                    return Some(RealtimeEvent::SessionClosed);
+                }
             }
         }
     }
@@ -694,5 +833,146 @@ impl rs_ai_core::RealtimeSession for GeminiLiveSessionAdapter {
     async fn close(self: Box<Self>) -> AiResult<()> {
         // WebSocket Drop impl sends close frame
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rs_ai_core::RealtimeSession;
+
+    #[test]
+    fn tool_result_normalizes_non_objects() {
+        for value in [serde_json::json!(null), serde_json::json!([1, 2])] {
+            assert_eq!(
+                normalize_tool_result(value.clone()),
+                serde_json::json!({"result": value})
+            );
+        }
+        let object = serde_json::json!({"result": 1, "other": true});
+        assert_eq!(normalize_tool_result(object.clone()), object);
+    }
+
+    #[tokio::test]
+    async fn mixed_message_and_tool_results_survive_adapter() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(socket).await.unwrap();
+            ws.send(Message::Text(
+                serde_json::json!({
+                    "serverContent": {
+                        "modelTurn": {"parts": [
+                            {"text": "first"},
+                            {"inlineData": {"mimeType": "audio/pcm", "data": "AQI="}},
+                            {"inlineData": {"mimeType": "audio/pcm", "data": "!"}},
+                            {"inlineData": {"mimeType": "audio/pcm", "data": "AwQF"}},
+                            {"functionCall": {"id": "part", "name": "f", "args": {}}},
+                            {"text": "last"}
+                        ]},
+                        "inputTranscription": {"text": "heard", "finished": false},
+                        "outputTranscription": {"text": "spoken"},
+                        "interrupted": true, "generationComplete": true, "turnComplete": true
+                    },
+                    "toolCall": {"functionCalls": [
+                        {"id": "one", "name": "f", "args": {"n": 1}},
+                        {"id": "two", "name": "g", "args": {"n": 2}}
+                    ]},
+                    "toolCallCancellation": {"ids": ["two"]}
+                })
+                .to_string(),
+            ))
+            .await
+            .unwrap();
+            let response = ws.next().await.unwrap().unwrap().into_text().unwrap();
+            let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+            assert_eq!(
+                response["tool_response"]["function_responses"],
+                serde_json::json!([
+                    {"id":"one", "name":"f", "response":{"ok":true}},
+                    {"id":"part", "name":"g", "response":{"result":42}}
+                ])
+            );
+            ws.close(None).await.unwrap();
+        });
+        let (ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}"))
+            .await
+            .unwrap();
+        let (sink, stream) = ws.split();
+        let session = LiveSession {
+            sink: Arc::new(Mutex::new(sink)),
+            stream: Arc::new(Mutex::new(stream)),
+            pending: VecDeque::new(),
+        };
+        let mut adapter = GeminiLiveSessionAdapter::new(session, "test");
+        assert!(
+            matches!(adapter.recv().await, Some(RealtimeEvent::TextDelta { delta }) if delta == "first")
+        );
+        assert!(
+            matches!(adapter.recv().await, Some(RealtimeEvent::AudioDelta { delta }) if delta == [1, 2])
+        );
+        assert!(
+            matches!(adapter.recv().await, Some(RealtimeEvent::Error { message }) if message.contains("Invalid audio data"))
+        );
+        assert!(
+            matches!(adapter.recv().await, Some(RealtimeEvent::AudioDelta { delta }) if delta == [3, 4, 5])
+        );
+        assert!(
+            matches!(adapter.recv().await, Some(RealtimeEvent::ToolCall { id, .. }) if id == "part")
+        );
+        assert!(
+            matches!(adapter.recv().await, Some(RealtimeEvent::TextDelta { delta }) if delta == "last")
+        );
+        assert!(
+            matches!(adapter.recv().await, Some(RealtimeEvent::InputTranscription { text, finished: Some(false) }) if text == "heard")
+        );
+        assert!(
+            matches!(adapter.recv().await, Some(RealtimeEvent::OutputTranscription { text, finished: None }) if text == "spoken")
+        );
+        assert!(matches!(
+            adapter.recv().await,
+            Some(RealtimeEvent::Interrupted)
+        ));
+        assert!(matches!(
+            adapter.recv().await,
+            Some(RealtimeEvent::GenerationComplete)
+        ));
+        assert!(matches!(
+            adapter.recv().await,
+            Some(RealtimeEvent::TurnComplete)
+        ));
+        assert!(
+            matches!(adapter.recv().await, Some(RealtimeEvent::ToolCall { id, .. }) if id == "one")
+        );
+        assert!(
+            matches!(adapter.recv().await, Some(RealtimeEvent::ToolCall { id, .. }) if id == "two")
+        );
+        assert!(matches!(
+            adapter.recv().await,
+            Some(RealtimeEvent::ToolCallBatchComplete)
+        ));
+        adapter
+            .send_tool_result("one", "f", serde_json::json!({"ok": true}))
+            .await
+            .unwrap();
+        adapter
+            .send_tool_result("part", "g", serde_json::json!(42))
+            .await
+            .unwrap();
+        adapter
+            .send_tool_result("two", "g", serde_json::json!({"cancelled": true}))
+            .await
+            .unwrap();
+        assert!(
+            matches!(adapter.recv().await, Some(RealtimeEvent::ToolCallsCancelled { ids }) if ids == ["two"])
+        );
+        adapter.resume().await.unwrap();
+        assert!(matches!(
+            adapter.recv().await,
+            Some(RealtimeEvent::SessionClosed)
+        ));
+        assert!(adapter.recv().await.is_none());
+        server.await.unwrap();
     }
 }

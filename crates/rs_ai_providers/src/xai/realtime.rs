@@ -102,6 +102,12 @@ async fn create_client_secret(api_key: &str, base_url: &str) -> AiResult<String>
 
 // ── WebSocket session ────────────────────────────────────────────────────────
 
+enum ConnectionState {
+    Open,
+    ClosePending,
+    Closed,
+}
+
 /// An active xAI Grok Voice Agent session.
 pub struct GrokVoiceSession {
     write: Arc<
@@ -112,6 +118,10 @@ pub struct GrokVoiceSession {
         >,
     >,
     model: String,
+    state: ConnectionState,
+    response_has_tool_calls: bool,
+    response_has_invalid_tool_calls: bool,
+    turn_complete_pending: bool,
 }
 
 impl GrokVoiceSession {
@@ -165,6 +175,10 @@ impl GrokVoiceSession {
         Ok(Self {
             write,
             model: config.model,
+            state: ConnectionState::Open,
+            response_has_tool_calls: false,
+            response_has_invalid_tool_calls: false,
+            turn_complete_pending: false,
         })
     }
 }
@@ -218,8 +232,54 @@ impl RealtimeSession for GrokVoiceSession {
         Ok(())
     }
 
+    async fn send_tool_result(
+        &mut self,
+        call_id: &str,
+        _name: &str,
+        result: serde_json::Value,
+    ) -> AiResult<()> {
+        let event = serde_json::json!({
+            "type": "conversation.item.create",
+            "item": {"type": "function_call_output", "call_id": call_id, "output": result.to_string()}
+        });
+        let mut w = self.write.lock().await;
+        w.send(WsMessage::Text(event.to_string()))
+            .await
+            .map_err(|e| AiError::Transport {
+                message: format!("xAI WebSocket send tool result failed: {e}"),
+                source: Some(Box::new(e)),
+            })?;
+        Ok(())
+    }
+
+    async fn resume(&mut self) -> AiResult<()> {
+        self.write
+            .lock()
+            .await
+            .send(WsMessage::Text(
+                serde_json::json!({"type":"response.create"}).to_string(),
+            ))
+            .await
+            .map_err(|e| AiError::Transport {
+                message: format!("xAI WebSocket continuation failed: {e}"),
+                source: Some(Box::new(e)),
+            })
+    }
+
     async fn recv(&mut self) -> Option<RealtimeEvent> {
         use futures::StreamExt;
+        if self.turn_complete_pending {
+            self.turn_complete_pending = false;
+            return Some(RealtimeEvent::TurnComplete);
+        }
+        match self.state {
+            ConnectionState::Open => {}
+            ConnectionState::ClosePending => {
+                self.state = ConnectionState::Closed;
+                return Some(RealtimeEvent::SessionClosed);
+            }
+            ConnectionState::Closed => return None,
+        }
         let mut w = self.write.lock().await;
         loop {
             match w.next().await {
@@ -231,7 +291,7 @@ impl RealtimeSession for GrokVoiceSession {
                     let event_type = parsed["type"].as_str().unwrap_or("");
 
                     match event_type {
-                        "response.text.delta" => {
+                        "response.text.delta" | "response.output_text.delta" => {
                             let delta = parsed["delta"].as_str().unwrap_or("").to_string();
                             return Some(RealtimeEvent::TextDelta { delta });
                         }
@@ -239,7 +299,7 @@ impl RealtimeSession for GrokVoiceSession {
                             let text = parsed["text"].as_str().unwrap_or("").to_string();
                             return Some(RealtimeEvent::TextDone { text });
                         }
-                        "response.audio.delta" => {
+                        "response.audio.delta" | "response.output_audio.delta" => {
                             let delta = parsed["delta"].as_str().and_then(|b64| {
                                 base64::engine::general_purpose::STANDARD.decode(b64).ok()
                             });
@@ -260,14 +320,17 @@ impl RealtimeSession for GrokVoiceSession {
                             {
                                 Some(arguments) => arguments,
                                 None => {
+                                    self.response_has_invalid_tool_calls = true;
                                     return Some(RealtimeEvent::Error {
                                         message: "Invalid or missing xAI realtime tool arguments"
                                             .into(),
-                                    })
+                                    });
                                 }
                             };
+                            let id = parsed["call_id"].as_str().unwrap_or("").to_string();
+                            self.response_has_tool_calls = true;
                             return Some(RealtimeEvent::ToolCall {
-                                id: parsed["call_id"].as_str().unwrap_or("").to_string(),
+                                id,
                                 name,
                                 arguments,
                             });
@@ -280,19 +343,43 @@ impl RealtimeSession for GrokVoiceSession {
                             return Some(RealtimeEvent::Error { message: msg });
                         }
                         "response.done" => {
-                            return Some(RealtimeEvent::Done);
+                            let had_tool_calls = std::mem::take(&mut self.response_has_tool_calls);
+                            let had_invalid_calls =
+                                std::mem::take(&mut self.response_has_invalid_tool_calls);
+                            return Some(match parsed["response"]["status"].as_str() {
+                                Some("completed") if had_tool_calls && !had_invalid_calls => {
+                                    self.turn_complete_pending = true;
+                                    RealtimeEvent::ToolCallBatchComplete
+                                }
+                                Some("completed") => RealtimeEvent::TurnComplete,
+                                Some("cancelled") => RealtimeEvent::Interrupted,
+                                status => RealtimeEvent::Error {
+                                    message: format!(
+                                        "xAI response ended with status {}: {}",
+                                        status.unwrap_or("missing"),
+                                        parsed["response"]["status_details"]
+                                    ),
+                                },
+                            });
+                        }
+                        "input_audio_buffer.speech_started" => {
+                            return Some(RealtimeEvent::SpeechStarted)
                         }
                         _ => continue,
                     }
                 }
                 Some(Ok(WsMessage::Ping(_))) | Some(Ok(WsMessage::Pong(_))) => continue,
+                Some(Ok(WsMessage::Close(_))) | None => {
+                    self.state = ConnectionState::Closed;
+                    return Some(RealtimeEvent::SessionClosed);
+                }
                 Some(Ok(_)) => continue,
                 Some(Err(e)) => {
+                    self.state = ConnectionState::ClosePending;
                     return Some(RealtimeEvent::Error {
                         message: format!("WebSocket error: {e}"),
                     });
                 }
-                None => return Some(RealtimeEvent::Done),
             }
         }
     }
@@ -332,6 +419,10 @@ mod tests {
         let mut session = GrokVoiceSession {
             write: Arc::new(Mutex::new(socket)),
             model: "test".into(),
+            state: ConnectionState::Open,
+            response_has_tool_calls: false,
+            response_has_invalid_tool_calls: false,
+            turn_complete_pending: false,
         };
         assert!(
             matches!(session.recv().await, Some(RealtimeEvent::AudioDelta { delta }) if delta == [1, 2, 3, 4])

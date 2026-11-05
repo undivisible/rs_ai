@@ -6,32 +6,27 @@ services before promising compatibility.
 
 ## Reliability first
 
-- Preserve every Gemini Live event in a server message. The current decoder in
-  `crates/rs_ai_providers/src/gemini/live_api.rs` returns at most one event, so
-  mixed text and audio, multiple audio parts, and turn completion can be lost.
-  The unified adapter also keeps only the first call in a tool-call batch.
-- Define turn completion, interruption, tool cancellation, and session closure
-  separately. The core `RealtimeEvent::Done` says session closed, but the
-  ChatGPT adapter emits it at response completion and Gemini discards its turn
-  completion and interruption events.
 - Report malformed audio and tool arguments rather than dropping them or
-  substituting empty data. Check the remaining ChatGPT and Gemini realtime
-  paths; xAI now reports malformed realtime audio and tool arguments.
+  substituting empty data. Check the remaining realtime paths against current
+  provider schemas and test them with real sessions.
+- OpenAI and xAI tool batches are tracked per session, not per response ID.
+  Support interleaved responses before advertising concurrent response support.
 
 ## A portable voice agent
 
-The core `RealtimeSession` can receive a tool call but cannot return its result,
-finish a manually controlled audio turn, or configure tools. Provider-specific
-sessions expose some of these operations. Design a common contract that exposes
-the full exchange and returns an explicit unsupported-capability error when a
-provider cannot perform an operation. Include negotiated audio format and sample
-rate, so playback does not depend on undocumented provider defaults.
+The core `RealtimeSession` supports returning tool results and observing turn
+completion, interruption, cancellation, and connection closure. It cannot yet
+finish a manually controlled audio turn or configure tools. Provider-specific
+sessions expose some of these operations. A portable contract also needs the
+negotiated audio format and sample rate, so playback does not depend on
+undocumented provider defaults.
 
-Exercise the contract with local WebSocket fixtures for concurrent tool calls,
-barge-in, cancellation, malformed media, and connection closure. Follow with a
-microphone-to-speaker example that clears queued playback on interruption. The
-existing examples send text and count audio bytes; they do not demonstrate a
-duplex voice conversation.
+Local WebSocket fixtures cover tool-call batches, interruption events, malformed
+media, and connection closure. A Gemini connection attempt reached the service
+but its available API key was rejected, so live-session behavior remains
+unverified. Test with valid credentials and add a microphone-to-speaker example
+that clears queued playback on interruption. The existing examples send text
+and count audio bytes; they do not demonstrate a duplex voice conversation.
 
 ## Creative multimodal experiences
 

@@ -358,7 +358,10 @@ pub enum ServerEvent {
         item: serde_json::Value,
     },
     /// Audio transcript delta.
-    #[serde(rename = "response.audio_transcript.delta")]
+    #[serde(
+        rename = "response.audio_transcript.delta",
+        alias = "response.output_audio_transcript.delta"
+    )]
     AudioTranscriptDelta {
         /// Item ID.
         item_id: String,
@@ -366,7 +369,7 @@ pub enum ServerEvent {
         delta: String,
     },
     /// Audio delta (base64-encoded PCM16).
-    #[serde(rename = "response.audio.delta")]
+    #[serde(rename = "response.audio.delta", alias = "response.output_audio.delta")]
     AudioDelta {
         /// Item ID.
         item_id: String,
@@ -380,7 +383,7 @@ pub enum ServerEvent {
         item_id: String,
     },
     /// Text delta.
-    #[serde(rename = "response.text.delta")]
+    #[serde(rename = "response.text.delta", alias = "response.output_text.delta")]
     TextDelta {
         /// Item ID.
         item_id: String,
@@ -558,6 +561,12 @@ impl RealtimeSession {
 
     /// Return a tool call result back to the model.
     pub async fn send_tool_result(&mut self, call_id: &str, output: &str) -> RealtimeResult<()> {
+        self.send_tool_output(call_id, output).await?;
+        self.send_event(ClientEvent::ResponseCreate { response: None })
+            .await
+    }
+
+    async fn send_tool_output(&mut self, call_id: &str, output: &str) -> RealtimeResult<()> {
         self.send_event(ClientEvent::ConversationItemCreate {
             item: ConversationItem {
                 kind: "function_call_output".into(),
@@ -568,9 +577,7 @@ impl RealtimeSession {
                 output: Some(output.to_string()),
             },
         })
-        .await?;
-        self.send_event(ClientEvent::ResponseCreate { response: None })
-            .await
+        .await
     }
 
     /// Receive the next server event.
@@ -618,6 +625,10 @@ use rs_ai_core::{AiResult, RealtimeEvent};
 pub struct ChatGptRealtimeSession {
     inner: RealtimeSession,
     model: String,
+    closed: bool,
+    has_tool_calls: bool,
+    invalid_tool_arguments: bool,
+    pending_turn_complete: bool,
 }
 
 impl ChatGptRealtimeSession {
@@ -626,6 +637,10 @@ impl ChatGptRealtimeSession {
         Self {
             inner: session,
             model: model.into(),
+            closed: false,
+            has_tool_calls: false,
+            invalid_tool_arguments: false,
+            pending_turn_complete: false,
         }
     }
 }
@@ -660,9 +675,55 @@ impl rs_ai_core::RealtimeSession for ChatGptRealtimeSession {
             })
     }
 
+    async fn send_tool_result(
+        &mut self,
+        call_id: &str,
+        _name: &str,
+        result: serde_json::Value,
+    ) -> AiResult<()> {
+        self.inner
+            .send_tool_output(call_id, &result.to_string())
+            .await
+            .map_err(|e| rs_ai_core::AiError::BridgeError {
+                bridge: "chatgpt_realtime".into(),
+                message: e.to_string(),
+            })
+    }
+
+    async fn resume(&mut self) -> AiResult<()> {
+        self.inner
+            .send_event(ClientEvent::ResponseCreate { response: None })
+            .await
+            .map_err(|e| rs_ai_core::AiError::BridgeError {
+                bridge: "chatgpt_realtime".into(),
+                message: e.to_string(),
+            })
+    }
+
     async fn recv(&mut self) -> Option<RealtimeEvent> {
+        if self.closed {
+            return None;
+        }
+        if std::mem::take(&mut self.pending_turn_complete) {
+            return Some(RealtimeEvent::TurnComplete);
+        }
         loop {
             match self.inner.recv().await {
+                Some(Ok(ServerEvent::SpeechStarted { .. })) => {
+                    return Some(RealtimeEvent::SpeechStarted);
+                }
+                Some(Ok(ServerEvent::TranscriptionCompleted { transcript, .. })) => {
+                    return Some(RealtimeEvent::InputTranscription {
+                        text: transcript,
+                        finished: Some(true),
+                    });
+                }
+                Some(Ok(ServerEvent::AudioTranscriptDelta { delta, .. })) => {
+                    return Some(RealtimeEvent::OutputTranscription {
+                        text: delta,
+                        finished: None,
+                    });
+                }
                 Some(Ok(ServerEvent::TextDelta { delta, .. })) => {
                     return Some(RealtimeEvent::TextDelta { delta });
                 }
@@ -680,15 +741,40 @@ impl rs_ai_core::RealtimeSession for ChatGptRealtimeSession {
                     arguments,
                     ..
                 })) => {
-                    let args: serde_json::Value =
-                        serde_json::from_str(&arguments).unwrap_or(serde_json::Value::Null);
+                    let args: serde_json::Value = match serde_json::from_str(&arguments) {
+                        Ok(args) => args,
+                        Err(error) => {
+                            self.invalid_tool_arguments = true;
+                            return Some(RealtimeEvent::Error {
+                                message: format!(
+                                    "Invalid arguments for tool call {call_id}: {error}"
+                                ),
+                            });
+                        }
+                    };
+                    self.has_tool_calls = true;
                     return Some(RealtimeEvent::ToolCall {
                         id: call_id,
                         name,
                         arguments: args,
                     });
                 }
-                Some(Ok(ServerEvent::ResponseDone { .. })) => return Some(RealtimeEvent::Done),
+                Some(Ok(ServerEvent::ResponseDone { response })) => {
+                    let status = response.get("status").and_then(|v| v.as_str());
+                    let has_tool_calls = std::mem::take(&mut self.has_tool_calls);
+                    let invalid_tool_arguments = std::mem::take(&mut self.invalid_tool_arguments);
+                    return Some(match status {
+                        Some("completed") if has_tool_calls && !invalid_tool_arguments => {
+                            self.pending_turn_complete = true;
+                            RealtimeEvent::ToolCallBatchComplete
+                        }
+                        Some("completed") => RealtimeEvent::TurnComplete,
+                        Some("cancelled") => RealtimeEvent::Interrupted,
+                        _ => RealtimeEvent::Error {
+                            message: format!("Realtime response did not complete: {response}"),
+                        },
+                    });
+                }
                 Some(Ok(ServerEvent::Error { error })) => {
                     return Some(RealtimeEvent::Error {
                         message: error.message,
@@ -700,7 +786,10 @@ impl rs_ai_core::RealtimeSession for ChatGptRealtimeSession {
                         message: e.to_string(),
                     });
                 }
-                None => return None,
+                None => {
+                    self.closed = true;
+                    return Some(RealtimeEvent::SessionClosed);
+                }
             }
         }
     }
@@ -708,5 +797,191 @@ impl rs_ai_core::RealtimeSession for ChatGptRealtimeSession {
     async fn close(self: Box<Self>) -> AiResult<()> {
         // WebSocket Drop impl sends close frame
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rs_ai_core::RealtimeSession as _;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn tool_output_and_response_lifecycle_over_websocket() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(socket).await.unwrap();
+            let item: serde_json::Value =
+                serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap())
+                    .unwrap();
+            assert_eq!(
+                item,
+                json!({"type":"conversation.item.create", "item": {
+                    "type":"function_call_output", "call_id":"call-1", "output":"{\"ok\":true}"
+                }})
+            );
+            let second: serde_json::Value =
+                serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap())
+                    .unwrap();
+            assert_eq!(second["item"]["call_id"], "call-2");
+            let create: serde_json::Value =
+                serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap())
+                    .unwrap();
+            assert_eq!(create["type"], "response.create");
+            for event in [
+                json!({"type":"input_audio_buffer.speech_started", "audio_start_ms":0, "item_id":"i"}),
+                json!({"type":"conversation.item.input_audio_transcription.completed", "item_id":"i", "content_index":0, "transcript":"heard"}),
+                json!({"type":"response.output_audio_transcript.delta", "item_id":"i", "delta":"spoken"}),
+                json!({"type":"response.output_text.delta", "item_id":"i", "delta":"hello"}),
+                json!({"type":"response.output_audio.delta", "item_id":"i", "delta":"AQI="}),
+                json!({"type":"response.function_call_arguments.done", "item_id":"i1", "call_id":"c1", "name":"tool", "arguments":"{}"}),
+                json!({"type":"response.function_call_arguments.done", "item_id":"i2", "call_id":"c2", "name":"tool", "arguments":"{}"}),
+                json!({"type":"response.done", "response":{"status":"completed"}}),
+                json!({"type":"response.done", "response":{"status":"completed"}}),
+                json!({"type":"response.done", "response":{"status":"cancelled", "status_details":{"reason":"turn_detected"}}}),
+                json!({"type":"response.done", "response":{"status":"cancelled", "status_details":{"reason":"client_cancelled"}}}),
+                json!({"type":"response.done", "response":{"status":"failed", "status_details":{"error":{"message":"failed"}}}}),
+                json!({"type":"response.done", "response":{"status":"incomplete"}}),
+            ] {
+                socket.send(Message::Text(event.to_string())).await.unwrap();
+            }
+            socket.close(None).await.unwrap();
+        });
+        let (socket, _) = tokio_tungstenite::connect_async(format!("ws://{address}"))
+            .await
+            .unwrap();
+        let (sink, stream) = socket.split();
+        let inner = RealtimeSession {
+            sink: Arc::new(Mutex::new(sink)),
+            stream: Arc::new(Mutex::new(stream)),
+            _model: "test".into(),
+        };
+        let mut session = ChatGptRealtimeSession::new(inner, "test");
+        session
+            .send_tool_result("call-1", "tool", json!({"ok":true}))
+            .await
+            .unwrap();
+        session
+            .send_tool_result("call-2", "tool", json!(2))
+            .await
+            .unwrap();
+        session.resume().await.unwrap();
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::SpeechStarted)
+        ));
+        assert!(
+            matches!(session.recv().await, Some(RealtimeEvent::InputTranscription { text, finished: Some(true) }) if text == "heard")
+        );
+        assert!(
+            matches!(session.recv().await, Some(RealtimeEvent::OutputTranscription { text, finished: None }) if text == "spoken")
+        );
+        assert!(
+            matches!(session.recv().await, Some(RealtimeEvent::TextDelta { delta }) if delta == "hello")
+        );
+        assert!(
+            matches!(session.recv().await, Some(RealtimeEvent::AudioDelta { delta }) if delta == [1, 2])
+        );
+        for expected in ["c1", "c2"] {
+            assert!(
+                matches!(session.recv().await, Some(RealtimeEvent::ToolCall { id, .. }) if id == expected)
+            );
+        }
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::ToolCallBatchComplete)
+        ));
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::TurnComplete)
+        ));
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::TurnComplete)
+        ));
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::Interrupted)
+        ));
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::Interrupted)
+        ));
+        for _ in 0..2 {
+            assert!(matches!(
+                session.recv().await,
+                Some(RealtimeEvent::Error { .. })
+            ));
+        }
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::SessionClosed)
+        ));
+        assert!(session.recv().await.is_none());
+        assert!(session.recv().await.is_none());
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn malformed_tool_arguments_suppress_only_the_affected_batch() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(socket).await.unwrap();
+            for event in [
+                json!({"type":"response.function_call_arguments.done", "item_id":"i1", "call_id":"good1", "name":"tool", "arguments":"{}"}),
+                json!({"type":"response.function_call_arguments.done", "item_id":"i2", "call_id":"bad", "name":"tool", "arguments":"{"}),
+                json!({"type":"response.function_call_arguments.done", "item_id":"i3", "call_id":"good2", "name":"tool", "arguments":"null"}),
+                json!({"type":"response.done", "response":{"status":"completed"}}),
+                json!({"type":"response.function_call_arguments.done", "item_id":"i4", "call_id":"next", "name":"tool", "arguments":"{}"}),
+                json!({"type":"response.done", "response":{"status":"completed"}}),
+            ] {
+                socket.send(Message::Text(event.to_string())).await.unwrap();
+            }
+            socket.close(None).await.unwrap();
+        });
+        let (socket, _) = tokio_tungstenite::connect_async(format!("ws://{address}"))
+            .await
+            .unwrap();
+        let (sink, stream) = socket.split();
+        let inner = RealtimeSession {
+            sink: Arc::new(Mutex::new(sink)),
+            stream: Arc::new(Mutex::new(stream)),
+            _model: "test".into(),
+        };
+        let mut session = ChatGptRealtimeSession::new(inner, "test");
+        assert!(
+            matches!(session.recv().await, Some(RealtimeEvent::ToolCall { id, .. }) if id == "good1")
+        );
+        assert!(
+            matches!(session.recv().await, Some(RealtimeEvent::Error { message }) if message.contains("bad"))
+        );
+        assert!(
+            matches!(session.recv().await, Some(RealtimeEvent::ToolCall { id, arguments: serde_json::Value::Null, .. }) if id == "good2")
+        );
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::TurnComplete)
+        ));
+        assert!(
+            matches!(session.recv().await, Some(RealtimeEvent::ToolCall { id, .. }) if id == "next")
+        );
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::ToolCallBatchComplete)
+        ));
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::TurnComplete)
+        ));
+        assert!(matches!(
+            session.recv().await,
+            Some(RealtimeEvent::SessionClosed)
+        ));
+        assert!(session.recv().await.is_none());
+        server.await.unwrap();
     }
 }
