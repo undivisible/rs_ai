@@ -22,6 +22,10 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
 
+#[cfg(test)]
+#[path = "realtime_tool_tests.rs"]
+mod realtime_tool_tests;
+
 const DEFAULT_BASE_URL: &str = "https://api.x.ai";
 const WS_BASE_URL: &str = "wss://api.x.ai";
 
@@ -250,9 +254,18 @@ impl RealtimeSession for GrokVoiceSession {
                         }
                         "response.function_call_arguments.done" | "response.tool_call" => {
                             let name = parsed["name"].as_str().unwrap_or("").to_string();
-                            let raw_args = parsed["arguments"].as_str().unwrap_or("{}");
-                            let arguments: serde_json::Value =
-                                serde_json::from_str(raw_args).unwrap_or(serde_json::Value::Null);
+                            let arguments = match parsed["arguments"]
+                                .as_str()
+                                .and_then(|raw| serde_json::from_str(raw).ok())
+                            {
+                                Some(arguments) => arguments,
+                                None => {
+                                    return Some(RealtimeEvent::Error {
+                                        message: "Invalid or missing xAI realtime tool arguments"
+                                            .into(),
+                                    })
+                                }
+                            };
                             return Some(RealtimeEvent::ToolCall {
                                 id: parsed["call_id"].as_str().unwrap_or("").to_string(),
                                 name,

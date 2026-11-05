@@ -236,7 +236,7 @@ impl LanguageModel for OpenAiCompatibleModel {
             }
         }
         let response = self.do_request(request).await?;
-        Ok(convert::response_to_result(response, &self.provider_id))
+        convert::response_to_result(response, &self.provider_id)
     }
 
     async fn stream(&self, prompt: Prompt, options: GenerateOptions) -> AiResult<AiStream> {
