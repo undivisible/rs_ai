@@ -1,7 +1,7 @@
 use rs_ai_core::{
-    ContentPart, FinishReason, GenerateOptions, GenerateResult, ImageData, Prompt,
-    ResponseMetadata, Role, ThinkingConfig as CoreThinkingConfig, ToolCallRequest, ToolChoice,
-    Usage,
+    AiError, AiResult, ContentPart, FinishReason, GenerateOptions, GenerateResult, ImageData,
+    Prompt, ResponseMetadata, Role, ThinkingConfig as CoreThinkingConfig, ToolCallRequest,
+    ToolChoice, Usage,
 };
 
 use super::api_types::*;
@@ -16,7 +16,10 @@ pub(crate) struct GeminiRequestParts {
 }
 
 /// Separate system messages from conversation messages and build the Gemini request parts.
-pub(crate) fn build_request(prompt: Prompt, options: &GenerateOptions) -> GeminiRequestParts {
+pub(crate) fn build_request(
+    prompt: Prompt,
+    options: &GenerateOptions,
+) -> AiResult<GeminiRequestParts> {
     let messages = prompt.into_messages();
 
     let mut system_parts: Vec<GeminiPart> = Vec::new();
@@ -26,17 +29,15 @@ pub(crate) fn build_request(prompt: Prompt, options: &GenerateOptions) -> Gemini
         match msg.role {
             Role::System => {
                 for part in &msg.content {
-                    if let Some(gp) = content_part_to_gemini(part) {
-                        system_parts.push(gp);
-                    }
+                    system_parts.push(content_part_to_gemini(part)?);
                 }
             }
             Role::User => {
                 let parts = msg
                     .content
                     .iter()
-                    .filter_map(content_part_to_gemini)
-                    .collect();
+                    .map(content_part_to_gemini)
+                    .collect::<AiResult<_>>()?;
                 contents.push(GeminiContent {
                     role: Some("user".to_string()),
                     parts,
@@ -46,8 +47,8 @@ pub(crate) fn build_request(prompt: Prompt, options: &GenerateOptions) -> Gemini
                 let parts = msg
                     .content
                     .iter()
-                    .filter_map(content_part_to_gemini)
-                    .collect();
+                    .map(content_part_to_gemini)
+                    .collect::<AiResult<_>>()?;
                 contents.push(GeminiContent {
                     role: Some("model".to_string()),
                     parts,
@@ -57,8 +58,8 @@ pub(crate) fn build_request(prompt: Prompt, options: &GenerateOptions) -> Gemini
                 let parts = msg
                     .content
                     .iter()
-                    .filter_map(content_part_to_gemini)
-                    .collect();
+                    .map(content_part_to_gemini)
+                    .collect::<AiResult<_>>()?;
                 contents.push(GeminiContent {
                     role: Some("user".to_string()),
                     parts,
@@ -79,34 +80,31 @@ pub(crate) fn build_request(prompt: Prompt, options: &GenerateOptions) -> Gemini
     let generation_config = build_generation_config(options);
     let (tools, tool_config) = build_tools(options);
 
-    GeminiRequestParts {
+    Ok(GeminiRequestParts {
         contents,
         system_instruction,
         generation_config,
         tools,
         tool_config,
-    }
+    })
 }
 
-fn content_part_to_gemini(part: &ContentPart) -> Option<GeminiPart> {
+fn content_part_to_gemini(part: &ContentPart) -> AiResult<GeminiPart> {
     match part {
-        ContentPart::Text { text } => Some(GeminiPart::Text { text: text.clone() }),
+        ContentPart::Text { text } => Ok(GeminiPart::Text { text: text.clone() }),
         ContentPart::Image { data } => match data {
-            ImageData::Base64 { media_type, data } => Some(GeminiPart::InlineData {
+            ImageData::Base64 { media_type, data } => Ok(GeminiPart::InlineData {
                 inline_data: InlineData {
                     mime_type: media_type.clone(),
                     data: data.clone(),
                 },
             }),
-            ImageData::Url { url, .. } => {
-                // Gemini doesn't natively support image URLs in inline_data;
-                // pass as text reference as a fallback.
-                Some(GeminiPart::Text {
-                    text: format!("[Image URL: {}]", url),
-                })
-            }
+            ImageData::Url { .. } => Err(AiError::UnsupportedCapability {
+                capability: "image URLs (use base64 image data)".into(),
+                provider: "gemini".into(),
+            }),
         },
-        ContentPart::ToolCall { call } => Some(GeminiPart::FunctionCall {
+        ContentPart::ToolCall { call } => Ok(GeminiPart::FunctionCall {
             function_call: FunctionCall {
                 id: None,
                 name: call.name.clone(),
@@ -118,7 +116,7 @@ fn content_part_to_gemini(part: &ContentPart) -> Option<GeminiPart> {
                 "content": result.content,
                 "is_error": result.is_error,
             });
-            Some(GeminiPart::FunctionResponse {
+            Ok(GeminiPart::FunctionResponse {
                 function_response: FunctionResponse {
                     id: None,
                     name: result.call_id.clone(),
@@ -126,7 +124,10 @@ fn content_part_to_gemini(part: &ContentPart) -> Option<GeminiPart> {
                 },
             })
         }
-        ContentPart::File { .. } => None,
+        ContentPart::File { .. } => Err(AiError::UnsupportedCapability {
+            capability: "file attachments".into(),
+            provider: "gemini".into(),
+        }),
     }
 }
 

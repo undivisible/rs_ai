@@ -120,8 +120,9 @@ impl ClientBuilder {
     /// [`generate`](ClientBuilder::generate) or [`stream`](ClientBuilder::stream) is called.
     ///
     /// If the value looks like a URL (starts with `http://` or `https://`) it is
-    /// sent as an image URL reference. Otherwise it is treated as a local file
-    /// path and the file contents are base64-encoded and sent inline.
+    /// passed as an image URL reference. Gemini does not support URL references
+    /// through this API; use a local file path instead. A local file is read,
+    /// base64-encoded, and sent inline.
     ///
     /// # Examples
     /// ```ignore

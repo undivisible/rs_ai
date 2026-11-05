@@ -104,22 +104,22 @@ impl GeminiModel {
         &self,
         prompt: Prompt,
         options: &GenerateOptions,
-    ) -> GenerateContentRequest {
+    ) -> AiResult<GenerateContentRequest> {
         let GeminiRequestParts {
             contents,
             system_instruction,
             generation_config,
             tools,
             tool_config,
-        } = build_request(prompt, options);
+        } = build_request(prompt, options)?;
 
-        GenerateContentRequest {
+        Ok(GenerateContentRequest {
             contents,
             system_instruction,
             generation_config,
             tools,
             tool_config,
-        }
+        })
     }
 }
 
@@ -138,7 +138,7 @@ impl LanguageModel for GeminiModel {
     }
 
     async fn generate(&self, prompt: Prompt, options: GenerateOptions) -> AiResult<GenerateResult> {
-        let request_body = self.build_api_request(prompt, &options);
+        let request_body = self.build_api_request(prompt, &options)?;
 
         let response = self
             .client
@@ -178,7 +178,7 @@ impl LanguageModel for GeminiModel {
     }
 
     async fn stream(&self, prompt: Prompt, options: GenerateOptions) -> AiResult<AiStream> {
-        let request_body = self.build_api_request(prompt, &options);
+        let request_body = self.build_api_request(prompt, &options)?;
 
         let response = self
             .client
@@ -210,5 +210,108 @@ impl LanguageModel for GeminiModel {
         }
 
         Ok(stream_parser::parse_stream(response))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rs_ai_core::{ContentPart, FileData, ImageData, Message};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    async fn text_only_server() -> (String, tokio::task::JoinHandle<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut buf = [0; 8192];
+            let mut request = Vec::new();
+            loop {
+                let size = stream.read(&mut buf).await.unwrap();
+                assert!(size > 0);
+                request.extend_from_slice(&buf[..size]);
+                if let Some(header_end) = request.windows(4).position(|w| w == b"\r\n\r\n") {
+                    let headers = String::from_utf8_lossy(&request[..header_end]);
+                    let length: usize = headers
+                        .lines()
+                        .find_map(|line| {
+                            let (name, value) = line.split_once(':')?;
+                            name.eq_ignore_ascii_case("content-length")
+                                .then(|| value.trim().parse().unwrap())
+                        })
+                        .unwrap();
+                    if request.len() >= header_end + 4 + length {
+                        break;
+                    }
+                }
+            }
+            let body = r#"{"candidates":[{"content":{"parts":[{"text":"plausible answer"}]},"finishReason":"STOP"}]}"#;
+            let response = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
+            stream.write_all(response.as_bytes()).await.unwrap();
+            String::from_utf8_lossy(&request).into_owned()
+        });
+        (url, task)
+    }
+
+    #[tokio::test]
+    async fn rejects_attachments_that_would_be_discarded() {
+        for part in [
+            ContentPart::Image {
+                data: ImageData::Url {
+                    url: "https://example.com/image.png".into(),
+                    detail: None,
+                },
+            },
+            ContentPart::File {
+                data: FileData::Base64 {
+                    media_type: "audio/wav".into(),
+                    data: "AQID".into(),
+                },
+            },
+        ] {
+            let (url, server) = text_only_server().await;
+            let model = GeminiModel::new("test", "test").with_base_url(url);
+            let mut message = Message::user("describe this");
+            message.content.push(part);
+            let result = model
+                .generate(
+                    Prompt::Messages(vec![message.clone()]),
+                    GenerateOptions::default(),
+                )
+                .await;
+            assert!(matches!(result, Err(AiError::UnsupportedCapability { .. })));
+            let stream = model
+                .stream(Prompt::Messages(vec![message]), GenerateOptions::default())
+                .await;
+            server.abort();
+            assert!(matches!(stream, Err(AiError::UnsupportedCapability { .. })));
+        }
+    }
+
+    #[tokio::test]
+    async fn accepts_inline_images() {
+        let (url, server) = text_only_server().await;
+        let model = GeminiModel::new("test", "test").with_base_url(url);
+        let mut message = Message::user("describe this");
+        message.content.push(ContentPart::Image {
+            data: ImageData::Base64 {
+                media_type: "image/png".into(),
+                data: "AQID".into(),
+            },
+        });
+        let result = model
+            .generate(Prompt::Messages(vec![message]), GenerateOptions::default())
+            .await;
+        let request = server.await.unwrap();
+        assert!(
+            matches!(result, Ok(response) if response.text.as_deref() == Some("plausible answer"))
+        );
+        let body = request.split_once("\r\n\r\n").unwrap().1;
+        let json: serde_json::Value = serde_json::from_str(body).unwrap();
+        assert_eq!(
+            json["contents"][0]["parts"][1]["inline_data"]["data"],
+            "AQID"
+        );
     }
 }
