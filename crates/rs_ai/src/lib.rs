@@ -29,11 +29,11 @@ use base64::Engine as _;
 use futures::stream::BoxStream;
 use rs_ai_core::tool::{ToolChoice, ToolDefinition, ToolSet};
 use rs_ai_core::{
-    agent_loop, AiError, AiResult, CacheConfig, ContentPart, EmbeddingResult, FileData,
-    GenerateOptions, ImageData, ImageGenerationOptions, ImageModel, ImageResult, LanguageModel,
-    LifecycleCallbacks, Message, OnFinish, OnStepFinish, OnToolCall, Prompt, RealtimeSession,
-    RerankResult, SpeechToTextModel, StreamEvent, TextToSpeechModel, TtsOptions,
-    VideoGenerationOptions, VideoModel, VideoResult,
+    agent_loop, AiError, AiResult, CacheConfig, ContentPart, EmbeddingResult, GenerateOptions,
+    ImageData, ImageGenerationOptions, ImageModel, ImageResult, LanguageModel, LifecycleCallbacks,
+    Message, OnFinish, OnStepFinish, OnToolCall, Prompt, RealtimeSession, RerankResult,
+    SpeechToTextModel, StreamEvent, TextToSpeechModel, TtsOptions, VideoGenerationOptions,
+    VideoModel, VideoResult,
 };
 use rs_ai_providers::chatgpt::ChatGptProvider;
 use rs_ai_providers::claude::ClaudeProvider;
@@ -359,14 +359,13 @@ impl ClientBuilder {
 
     /// Synthesize speech from text, returning audio bytes.
     ///
-    /// For providers that support native TTS this will eventually delegate to the
-    /// provider's TTS endpoint. As a sensible degraded path (when the underlying
-    /// `LanguageModel` does not expose native audio synthesis) the text is returned
-    /// as UTF-8 bytes so callers always receive a `Vec<u8>`.
+    /// Uses the native speech endpoint for ChatGPT, xAI, and Gemini.
+    /// Other providers return [`AiError::UnsupportedCapability`].
     ///
     /// # Errors
     ///
-    /// Returns an error if the API key or model ID is not set, or if the request fails.
+    /// Returns an error if the provider is unsupported, the API key is not set,
+    /// or the request fails.
     ///
     /// # Examples
     /// ```ignore
@@ -416,32 +415,10 @@ impl ClientBuilder {
                     .await?;
                 Ok(result.audio)
             }
-            _ => {
-                let options = GenerateOptions::default();
-                let model_id_hint = model_id.unwrap_or_default();
-                let client = self.build().await?;
-                let result = client
-                    .model
-                    .as_ref()
-                    .as_ref()
-                    .generate(Prompt::Text(text_str.clone()), options)
-                    .await?;
-                if let Some(audio_b64) = result.metadata.extra.get("audio_bytes") {
-                    if let Some(encoded) = audio_b64.as_str() {
-                        let bytes = base64::engine::general_purpose::STANDARD
-                            .decode(encoded)
-                            .map_err(|e| {
-                                AiError::Serialization(format!(
-                                    "Failed to decode audio_bytes from model `{}` metadata: {e}",
-                                    model_id_hint
-                                ))
-                            })?;
-                        return Ok(bytes);
-                    }
-                }
-                let spoken_text = result.text.unwrap_or(text_str);
-                Ok(spoken_text.into_bytes())
-            }
+            _ => Err(AiError::UnsupportedCapability {
+                capability: "text_to_speech".into(),
+                provider: "rs_ai".into(),
+            }),
         }
     }
 
@@ -631,10 +608,8 @@ impl ClientBuilder {
 
     /// Transcribe audio bytes into text.
     ///
-    /// Builds a `Prompt::Messages` that embeds the audio as a base64-encoded
-    /// `ContentPart::File`. Providers that support audio input (e.g. Gemini,
-    /// GPT-4o-audio) will transcribe the content; providers that do not will
-    /// return [`AiError::UnsupportedCapability`].
+    /// Uses the native transcription endpoint for ChatGPT and xAI.
+    /// Other providers return [`AiError::UnsupportedCapability`].
     ///
     /// # Arguments
     ///
@@ -644,14 +619,13 @@ impl ClientBuilder {
     /// # Errors
     ///
     /// Returns [`AiError::UnsupportedCapability`] when the provider cannot process
-    /// audio input, or other errors if the API key / model ID are missing or the
-    /// request fails.
+    /// audio input, or other errors if the API key is missing or the request fails.
     ///
     /// # Examples
     /// ```ignore
-    /// let transcript = rs_ai::gemini()
-    ///     .api_key("AIzaSy...")
-    ///     .model("gemini-2.5-flash")
+    /// let transcript = rs_ai::chatgpt()
+    ///     .api_key("sk-...")
+    ///     .model("whisper-1")
     ///     .transcribe(audio_bytes, "audio/wav")
     ///     .await?;
     /// ```
@@ -679,50 +653,10 @@ impl ClientBuilder {
                 let result = model.transcribe(audio, mime_type, None).await?;
                 Ok(result.text)
             }
-            _ => {
-                let encoded = base64::engine::general_purpose::STANDARD.encode(&audio);
-                let audio_part = ContentPart::File {
-                    data: FileData::Base64 {
-                        media_type: mime_type.to_string(),
-                        data: encoded,
-                    },
-                };
-                let instruction_part = ContentPart::Text {
-                    text: "Transcribe the audio in the attached file. Return only the transcription text, no commentary.".to_string(),
-                };
-                let message = Message {
-                    role: rs_ai_core::Role::User,
-                    content: vec![instruction_part, audio_part],
-                    name: None,
-                    metadata: std::collections::HashMap::new(),
-                };
-                let prompt = Prompt::Messages(vec![message]);
-                let model_id_hint = model_id.unwrap_or_default();
-                let client = self.build().await?;
-                let result = client
-                    .model
-                    .as_ref()
-                    .as_ref()
-                    .generate(prompt, GenerateOptions::default())
-                    .await
-                    .map_err(|e| match &e {
-                        AiError::ProviderError { message, .. }
-                            if message.to_lowercase().contains("audio")
-                                || message.to_lowercase().contains("unsupported")
-                                || message.to_lowercase().contains("media type") =>
-                        {
-                            AiError::UnsupportedCapability {
-                                capability: "audio_transcription".to_string(),
-                                provider: model_id_hint.clone(),
-                            }
-                        }
-                        _ => e,
-                    })?;
-                result.text.ok_or_else(|| AiError::UnsupportedCapability {
-                    capability: "audio_transcription".to_string(),
-                    provider: model_id_hint,
-                })
-            }
+            _ => Err(AiError::UnsupportedCapability {
+                capability: "audio_transcription".into(),
+                provider: "rs_ai".into(),
+            }),
         }
     }
 
@@ -1243,6 +1177,49 @@ pub fn compatible(base_url: impl Into<String>) -> ClientBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    async fn text_only_endpoint() -> (String, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0; 8192];
+            let _size = stream.read(&mut request).await.unwrap();
+            let body = r#"{"id":"test","model":"test","choices":[{"index":0,"message":{"role":"assistant","content":"plausible text"},"finish_reason":"stop"}]}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(), body
+            );
+            stream.write_all(response.as_bytes()).await.unwrap();
+        });
+        (url, server)
+    }
+
+    #[tokio::test]
+    async fn text_only_provider_does_not_return_text_as_audio() {
+        let (url, server) = text_only_endpoint().await;
+        let result = compatible(url)
+            .api_key("test")
+            .model("test")
+            .speak("hello")
+            .await;
+        server.abort();
+        assert!(matches!(result, Err(AiError::UnsupportedCapability { .. })));
+    }
+
+    #[tokio::test]
+    async fn text_only_provider_does_not_return_a_transcript_without_audio() {
+        let (url, server) = text_only_endpoint().await;
+        let result = compatible(url)
+            .api_key("test")
+            .model("test")
+            .transcribe(vec![1, 2, 3], "audio/wav")
+            .await;
+        server.abort();
+        assert!(matches!(result, Err(AiError::UnsupportedCapability { .. })));
+    }
 
     #[tokio::test]
     async fn builder_preserves_tool_configuration() {
