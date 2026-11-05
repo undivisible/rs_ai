@@ -1,4 +1,5 @@
 use rs_ai_core::content::{ContentPart, ImageData};
+use rs_ai_core::error::{AiError, AiResult};
 use rs_ai_core::message::{Message, Role};
 use rs_ai_core::model::{GenerateOptions, ThinkingConfig};
 use rs_ai_core::prompt::Prompt;
@@ -25,7 +26,7 @@ pub(crate) struct ConvertedPrompt {
 pub(crate) fn convert_prompt(
     prompt: Prompt,
     cache_config: Option<&rs_ai_core::CacheConfig>,
-) -> ConvertedPrompt {
+) -> AiResult<ConvertedPrompt> {
     let messages = prompt.into_messages();
 
     let mut system_parts: Vec<String> = Vec::new();
@@ -47,6 +48,16 @@ pub(crate) fn convert_prompt(
     });
 
     for (idx, msg) in messages.iter().enumerate() {
+        if msg
+            .content
+            .iter()
+            .any(|part| matches!(part, ContentPart::File { .. }))
+        {
+            return Err(AiError::UnsupportedCapability {
+                capability: "file attachments".into(),
+                provider: "anthropic".into(),
+            });
+        }
         let is_last_message = idx == messages.len() - 1;
         // Only apply cache_control to the last message's content
         let msg_cache_control = if is_last_message {
@@ -95,10 +106,10 @@ pub(crate) fn convert_prompt(
         Some(serde_json::Value::String(system_parts.join("\n")))
     };
 
-    ConvertedPrompt {
+    Ok(ConvertedPrompt {
         system,
         messages: api_messages,
-    }
+    })
 }
 
 /// Convert a list of `ContentPart` values into an `ApiContent`.
@@ -255,8 +266,8 @@ pub(crate) fn build_request(
     options: &GenerateOptions,
     stream: bool,
     cache_config: Option<&rs_ai_core::CacheConfig>,
-) -> MessagesRequest {
-    let converted = convert_prompt(prompt, cache_config);
+) -> AiResult<MessagesRequest> {
+    let converted = convert_prompt(prompt, cache_config)?;
     let max_tokens = options.max_tokens.unwrap_or(4096);
 
     let tools = options
@@ -308,7 +319,7 @@ pub(crate) fn build_request(
             },
         });
 
-    MessagesRequest {
+    Ok(MessagesRequest {
         model: model.to_string(),
         max_tokens,
         messages: converted.messages,
@@ -322,7 +333,7 @@ pub(crate) fn build_request(
         stream,
         thinking,
         output_config,
-    }
+    })
 }
 
 /// Map the Anthropic stop_reason string to `FinishReason`.

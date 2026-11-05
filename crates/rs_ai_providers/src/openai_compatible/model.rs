@@ -220,7 +220,13 @@ impl LanguageModel for OpenAiCompatibleModel {
     }
 
     async fn generate(&self, prompt: Prompt, options: GenerateOptions) -> AiResult<GenerateResult> {
-        let mut request = convert::options_to_request(&self.model_id, &prompt, &options, false);
+        let mut request = convert::options_to_request(
+            &self.model_id,
+            &self.provider_id,
+            &prompt,
+            &options,
+            false,
+        )?;
         if let Some(config) = &self.cache_config {
             if let Some(cache_key) = &config.openai_cache_key {
                 request.prompt_cache_key = Some(cache_key.clone());
@@ -234,7 +240,13 @@ impl LanguageModel for OpenAiCompatibleModel {
     }
 
     async fn stream(&self, prompt: Prompt, options: GenerateOptions) -> AiResult<AiStream> {
-        let mut request = convert::options_to_request(&self.model_id, &prompt, &options, true);
+        let mut request = convert::options_to_request(
+            &self.model_id,
+            &self.provider_id,
+            &prompt,
+            &options,
+            true,
+        )?;
         if let Some(config) = &self.cache_config {
             if let Some(cache_key) = &config.openai_cache_key {
                 request.prompt_cache_key = Some(cache_key.clone());

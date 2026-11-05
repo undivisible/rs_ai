@@ -95,7 +95,7 @@ impl ClaudeModel {
             options,
             stream,
             self.cache_config.as_ref(),
-        );
+        )?;
 
         let body = if self.claude_code_session_id.is_some() {
             let payload = serde_json::to_value(&request)
