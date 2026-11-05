@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD, Engine};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use serde::Serialize;
@@ -249,14 +248,14 @@ impl GeminiImageModel {
             .predictions
             .into_iter()
             .map(|p| {
-                let bytes = STANDARD.decode(&p.bytes_base64_encoded).unwrap_or_default();
-                GeneratedFile {
+                let bytes = super::decode_media(&p.bytes_base64_encoded)?;
+                Ok(GeneratedFile {
                     base64: p.bytes_base64_encoded,
                     bytes,
                     media_type: p.mime_type,
-                }
+                })
             })
-            .collect();
+            .collect::<AiResult<_>>()?;
 
         let image = images
             .first()
@@ -319,17 +318,16 @@ impl GeminiImageModel {
             .into_iter()
             .flat_map(|c| c.content.parts)
             .filter_map(|part| match part {
-                Part::InlineData { inline_data } => {
-                    let bytes = STANDARD.decode(&inline_data.data).unwrap_or_default();
-                    Some(GeneratedFile {
+                Part::InlineData { inline_data } => Some(
+                    super::decode_media(&inline_data.data).map(|bytes| GeneratedFile {
                         base64: inline_data.data,
                         bytes,
                         media_type: inline_data.mime_type,
-                    })
-                }
+                    }),
+                ),
                 _ => None,
             })
-            .collect();
+            .collect::<AiResult<_>>()?;
 
         let image = images
             .first()
@@ -346,5 +344,51 @@ impl GeminiImageModel {
             usage: Usage::default(),
             metadata: ResponseMetadata::default(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn rejects_invalid_image_data_in_both_response_formats() {
+        for (model_id, body) in [
+            (
+                "imagen-test",
+                r#"{"predictions":[{"bytesBase64Encoded":"%%%","mimeType":"image/png"}]}"#,
+            ),
+            (
+                "gemini-test",
+                r#"{"candidates":[{"content":{"parts":[{"inline_data":{"data":"%%%","mimeType":"image/png"}}]}}]}"#,
+            ),
+        ] {
+            let url = super::super::test_response(body).await;
+            let model = GeminiImageModel::new("test", model_id).with_base_url(url);
+            let result = model
+                .generate_image("hello", ImageGenerationOptions::default())
+                .await;
+            assert!(result.is_err(), "{model_id}");
+        }
+        for (model_id, body) in [
+            (
+                "imagen-test",
+                r#"{"predictions":[{"bytesBase64Encoded":"AQID","mimeType":"image/png"}]}"#,
+            ),
+            (
+                "gemini-test",
+                r#"{"candidates":[{"content":{"parts":[{"inline_data":{"data":"AQID","mimeType":"image/png"}}]}}]}"#,
+            ),
+        ] {
+            let url = super::super::test_response(body).await;
+            let model = GeminiImageModel::new("test", model_id).with_base_url(url);
+            let Ok(result) = model
+                .generate_image("hello", ImageGenerationOptions::default())
+                .await
+            else {
+                panic!("valid image response failed");
+            };
+            assert_eq!(result.image.bytes, [1, 2, 3]);
+        }
     }
 }
