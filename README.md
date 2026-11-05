@@ -1,4 +1,4 @@
-# rs_ai — Rust AI SDK (v0.2.36)
+# rs_ai — Rust AI SDK (v0.3.0, unreleased)
 
 Comprehensive Rust SDK for AI applications. Cloud + local providers, streaming, agent loop, image/video generation, realtime voice, and a clean async-first API.
 
@@ -8,10 +8,11 @@ Comprehensive Rust SDK for AI applications. Cloud + local providers, streaming, 
 
 Add the SDK and pick a provider. Pass your API key with `.api_key(...)`.
 The example below reads it from the `ANTHROPIC_API_KEY` environment variable.
+Version 0.3.0 is unreleased; the dependency examples apply after publication.
 
 ```toml
 [dependencies]
-rs_ai = "0.2"
+rs_ai = "0.3"
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -124,10 +125,10 @@ let result = model.rerank("my query", vec!["doc1".into(), "doc2".into()], Rerank
 
 ```toml
 [dependencies]
-rs_ai_local = { version = "0.2", features = ["browser"] }       # WASM browser AI
-rs_ai_local = { version = "0.2", features = ["gemini-nano"] }   # Android Gemini Nano
-rs_ai_local = { version = "0.2", features = ["foundationmodels"] } # macOS Apple FM
-rs_ai_local = { version = "0.2", features = ["phi-silica"] }    # Windows Phi Silica
+rs_ai_local = { version = "0.3", features = ["browser"] }       # WASM browser AI
+rs_ai_local = { version = "0.3", features = ["gemini-nano"] }   # Android Gemini Nano
+rs_ai_local = { version = "0.3", features = ["foundationmodels"] } # macOS Apple FM
+rs_ai_local = { version = "0.3", features = ["phi-silica"] }    # Windows Phi Silica
 ```
 
 ## Testing

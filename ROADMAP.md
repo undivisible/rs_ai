@@ -9,8 +9,8 @@ services before promising compatibility.
 - Report malformed audio and tool arguments rather than dropping them or
   substituting empty data. Check the remaining realtime paths against current
   provider schemas and test them with real sessions.
-- OpenAI and xAI tool batches are tracked per session, not per response ID.
-  Support interleaved responses before advertising concurrent response support.
+- Known limitation: OpenAI and xAI tool batches are tracked per session, not per
+  response ID. Concurrent interleaved responses are not supported.
 
 ## A portable voice agent
 
@@ -21,10 +21,10 @@ sessions expose some of these operations. A portable contract also needs the
 negotiated audio format and sample rate, so playback does not depend on
 undocumented provider defaults.
 
-Local WebSocket fixtures cover tool-call batches, interruption events, malformed
-media, and connection closure. A Gemini connection attempt reached the service
-but its available API key was rejected, so live-session behavior remains
-unverified. Test with valid credentials and add a microphone-to-speaker example
+Event preservation and interruption are verified against local WebSocket tests
+only. Live provider sessions remain unverified. Gemini rejected the available
+API key, and OpenAI and xAI credentials were unavailable. No live interruption
+was tested. Test with valid credentials and add a microphone-to-speaker example
 that clears queued playback on interruption. The existing examples send text
 and count audio bytes; they do not demonstrate a duplex voice conversation.
 
