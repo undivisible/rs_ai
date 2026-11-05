@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use rs_ai_core::{
-    AiError, AiResult, AiStream, Capability, CapabilitySet, ContentPart, FinishReason,
-    GenerateOptions, GenerateResult, LanguageModel, Prompt, ResponseMetadata, StreamEvent, Usage,
+    AiError, AiResult, AiStream, Capability, CapabilitySet, FinishReason, GenerateOptions,
+    GenerateResult, LanguageModel, Prompt, ResponseMetadata, StreamEvent, Usage,
 };
 
 use super::bridge::PhiSilicaBridge;
@@ -25,22 +25,6 @@ impl PhiSilicaModel {
         Self {
             bridge,
             capabilities,
-        }
-    }
-
-    fn prompt_to_text(prompt: &Prompt) -> String {
-        match prompt {
-            Prompt::Text(t) => t.clone(),
-            Prompt::Messages(msgs) => msgs
-                .iter()
-                .flat_map(|m| {
-                    m.content.iter().filter_map(|c| match c {
-                        ContentPart::Text { text } => Some(text.clone()),
-                        _ => None,
-                    })
-                })
-                .collect::<Vec<_>>()
-                .join("\n"),
         }
     }
 }
@@ -69,7 +53,7 @@ impl LanguageModel for PhiSilicaModel {
             }
         }
 
-        let text = Self::prompt_to_text(&prompt);
+        let text = crate::text_prompt(&prompt, "phi_silica")?;
         let response = self
             .bridge
             .generate(&text, options.max_tokens)
@@ -104,7 +88,7 @@ impl LanguageModel for PhiSilicaModel {
             }
         }
 
-        let text = Self::prompt_to_text(&prompt);
+        let text = crate::text_prompt(&prompt, "phi_silica")?;
         let chunks = self
             .bridge
             .stream_tokens(&text, options.max_tokens)

@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use rs_ai_core::{
-    AiError, AiResult, AiStream, Capability, CapabilitySet, ContentPart, FinishReason,
-    GenerateOptions, GenerateResult, LanguageModel, Prompt, ResponseMetadata, SyntheticStreamer,
-    Usage,
+    AiError, AiResult, AiStream, Capability, CapabilitySet, FinishReason, GenerateOptions,
+    GenerateResult, LanguageModel, Prompt, ResponseMetadata, SyntheticStreamer, Usage,
 };
 
 use super::bridge::BrowserAiBridge;
@@ -26,22 +25,6 @@ impl BrowserAiModel {
         Self {
             bridge,
             capabilities,
-        }
-    }
-
-    fn prompt_to_text(prompt: &Prompt) -> String {
-        match prompt {
-            Prompt::Text(t) => t.clone(),
-            Prompt::Messages(msgs) => msgs
-                .iter()
-                .flat_map(|m| {
-                    m.content.iter().filter_map(|c| match c {
-                        ContentPart::Text { text } => Some(text.clone()),
-                        _ => None,
-                    })
-                })
-                .collect::<Vec<_>>()
-                .join("\n"),
         }
     }
 }
@@ -74,7 +57,7 @@ impl LanguageModel for BrowserAiModel {
             ..Default::default()
         };
 
-        let text = Self::prompt_to_text(&prompt);
+        let text = crate::text_prompt(&prompt, "browser")?;
         let response = self
             .bridge
             .generate(&text, &browser_options)

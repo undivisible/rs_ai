@@ -27,3 +27,28 @@ pub use foundationmodels::*;
 pub use gemini_nano::*;
 #[cfg(feature = "phi-silica")]
 pub use phi_silica::*;
+
+#[cfg(any(
+    feature = "browser",
+    feature = "foundationmodels",
+    feature = "phi-silica"
+))]
+fn text_prompt(prompt: &rs_ai_core::Prompt, provider: &str) -> rs_ai_core::AiResult<String> {
+    use rs_ai_core::{AiError, ContentPart, Prompt};
+
+    match prompt {
+        Prompt::Text(text) => Ok(text.clone()),
+        Prompt::Messages(messages) => messages
+            .iter()
+            .flat_map(|message| &message.content)
+            .map(|part| match part {
+                ContentPart::Text { text } => Ok(text.clone()),
+                _ => Err(AiError::UnsupportedCapability {
+                    capability: "non-text prompt parts".into(),
+                    provider: provider.into(),
+                }),
+            })
+            .collect::<rs_ai_core::AiResult<Vec<_>>>()
+            .map(|parts| parts.join("\n")),
+    }
+}
