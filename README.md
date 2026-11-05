@@ -6,9 +6,8 @@ Comprehensive Rust SDK for AI applications. Cloud + local providers, streaming, 
 
 ## Quick Start
 
-Add the SDK and pick a provider. API keys are read from the environment by
-default (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, …), or pass
-one explicitly with `.api_key(...)`.
+Add the SDK and pick a provider. Pass your API key with `.api_key(...)`.
+The example below reads it from the `ANTHROPIC_API_KEY` environment variable.
 
 ```toml
 [dependencies]
@@ -22,6 +21,7 @@ use rs_ai::claude;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let answer = claude()
+        .api_key(std::env::var("ANTHROPIC_API_KEY")?)
         .model("claude-sonnet-4-6")
         .generate("What is 2+2?")
         .await?;
@@ -41,6 +41,7 @@ use rs_ai::claude;
 use futures::StreamExt;
 
 let mut stream = claude()
+    .api_key(std::env::var("ANTHROPIC_API_KEY")?)
     .model("claude-sonnet-4-6")
     .stream("Write a poem")
     .await?;
@@ -86,10 +87,10 @@ let image = rs_ai::chatgpt()
 
 ## Providers
 
-| Function | Provider | Env Var | Extras |
+| Function | Provider | Example key variable | Extras |
 |---|---|---|---|
 | `rs_ai::claude()` | Anthropic Claude | `ANTHROPIC_API_KEY` | streaming, tools, vision |
-| `rs_ai::chatgpt()` | OpenAI ChatGPT | `OPENAI_API_KEY` | DALL-E, Sora, TTS, STT, realtime |
+| `rs_ai::chatgpt()` | OpenAI ChatGPT | `OPENAI_API_KEY` | DALL-E, TTS, STT, realtime |
 | `rs_ai::gemini()` | Google Gemini | `GOOGLE_API_KEY` | Imagen, Veo, live API |
 | `rs_ai::xai()` | xAI Grok | `XAI_API_KEY` | Grok Imagine |
 | `rs_ai::cloudflare(id)` | Cloudflare Workers AI | `CLOUDFLARE_API_TOKEN` | — |

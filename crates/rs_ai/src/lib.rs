@@ -493,7 +493,7 @@ impl ClientBuilder {
 
     /// Generate a video from a text prompt.
     ///
-    /// Uses the provider's video model (Sora, Veo, etc.).
+    /// Uses the provider's video model, such as Veo or Grok Imagine.
     ///
     /// # Examples
     /// ```ignore

@@ -240,9 +240,7 @@ impl GenerationOptions {
 
 /// A media attachment to include in a prompt.
 ///
-/// Currently supports images passed as raw bytes with a MIME type hint.
-/// The Swift bridge decodes these into `NSImage` / `UIImage` and wraps
-/// them as `Prompt.Attachment.image(_:)`.
+/// Image attachments are not yet supported by the Swift bridge.
 #[derive(Debug, Clone)]
 pub struct Attachment {
     /// Raw image file bytes (JPEG, PNG, etc.).
@@ -665,8 +663,7 @@ impl Session {
 
     /// Sends a prompt with an image attachment and returns the response text.
     ///
-    /// The model sees both the text and the image, enabling visual reasoning
-    /// over diagrams, screenshots, or photos.
+    /// The current Swift bridge returns an error because it cannot send images.
     pub async fn respond_with_attachment(
         &self,
         prompt: &str,

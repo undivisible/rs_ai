@@ -63,10 +63,9 @@ public static class Bridge
             if (result != null)
                 return Marshal.StringToCoTaskMemUTF8(result);
             
-            // Fallback: return a placeholder indicating Phi Silica APIs
-            // are not accessible through this bridge
+            // Rust treats the error prefix as a bridge failure.
             return Marshal.StringToCoTaskMemUTF8(
-                "[Phi Silica C# bridge: Windows App SDK APIs not accessible. " +
+                "[error: Phi Silica C# bridge could not generate a response. " +
                 "Use a custom PhiSilicaBridge implementation.]");
         }
         catch (Exception ex)
