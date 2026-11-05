@@ -918,18 +918,7 @@ impl Client {
         images: Vec<String>,
     ) -> AiResult<String> {
         let message = build_vision_message(prompt.into(), images).await?;
-        let result = self
-            .model
-            .as_ref()
-            .as_ref()
-            .generate(Prompt::Messages(vec![message]), GenerateOptions::default())
-            .await?;
-
-        result.text.ok_or_else(|| AiError::ProviderError {
-            provider: self.model.as_ref().as_ref().provider_id().to_string(),
-            status: None,
-            message: "No text in response (model returned only tool calls)".to_string(),
-        })
+        self.generate_prompt(Prompt::Messages(vec![message])).await
     }
 
     /// Stream text generation from the model.
@@ -980,11 +969,7 @@ impl Client {
         images: Vec<String>,
     ) -> AiResult<BoxStream<'static, AiResult<StreamEvent>>> {
         let message = build_vision_message(prompt.into(), images).await?;
-        self.model
-            .as_ref()
-            .as_ref()
-            .stream(Prompt::Messages(vec![message]), GenerateOptions::default())
-            .await
+        self.stream_prompt(Prompt::Messages(vec![message])).await
     }
 
     /// Get a reference to the underlying language model.
@@ -1177,8 +1162,67 @@ pub fn compatible(base_url: impl Into<String>) -> ClientBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::StreamExt;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
+
+    struct OptionsModel(rs_ai_core::CapabilitySet);
+
+    #[async_trait::async_trait]
+    impl LanguageModel for OptionsModel {
+        fn model_id(&self) -> &str {
+            "test"
+        }
+        fn provider_id(&self) -> &str {
+            "test"
+        }
+        fn capabilities(&self) -> &rs_ai_core::CapabilitySet {
+            &self.0
+        }
+
+        async fn generate(
+            &self,
+            _: Prompt,
+            options: GenerateOptions,
+        ) -> AiResult<rs_ai_core::GenerateResult> {
+            Ok(rs_ai_core::GenerateResult {
+                text: Some(format!("{:?}", options.temperature)),
+                ..Default::default()
+            })
+        }
+
+        async fn stream(
+            &self,
+            _: Prompt,
+            options: GenerateOptions,
+        ) -> AiResult<rs_ai_core::AiStream> {
+            Ok(Box::pin(futures::stream::iter(vec![Ok(
+                StreamEvent::TextDelta {
+                    delta: format!("{:?}", options.temperature),
+                },
+            )])))
+        }
+    }
+
+    #[tokio::test]
+    async fn image_requests_preserve_client_options() {
+        let client = Client {
+            model: std::sync::Arc::new(Box::new(OptionsModel(rs_ai_core::CapabilitySet::new()))),
+            options: GenerateOptions::default().with_temperature(0.37),
+        };
+        let image = vec!["https://example.com/image.png".to_string()];
+        assert_eq!(
+            client
+                .generate_with_images("describe", image.clone())
+                .await
+                .unwrap(),
+            "Some(0.37)"
+        );
+        let mut stream = client.stream_with_images("describe", image).await.unwrap();
+        assert!(
+            matches!(stream.next().await.unwrap().unwrap(), StreamEvent::TextDelta { delta } if delta == "Some(0.37)")
+        );
+    }
 
     async fn text_only_endpoint() -> (String, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
