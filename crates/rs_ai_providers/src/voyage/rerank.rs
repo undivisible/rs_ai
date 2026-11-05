@@ -70,23 +70,7 @@ impl RerankingModel for VoyageRerankingModel {
             source: Some(Box::new(e)),
         })?;
 
-        let results = data["results"]
-            .as_array()
-            .ok_or_else(|| AiError::Transport {
-                message: "Voyage rerank: missing results array in response".into(),
-                source: None,
-            })?
-            .iter()
-            .map(|r| {
-                // Voyage returns `document` as a plain string, not an object with `text`.
-                let doc = r["document"].as_str().map(String::from);
-                RerankedDocument {
-                    index: r["index"].as_u64().unwrap_or(0) as usize,
-                    score: r["relevance_score"].as_f64().unwrap_or(0.0),
-                    document: doc,
-                }
-            })
-            .collect();
+        let results = parse_results(&data)?;
 
         // Voyage API doesn't return token usage; use defaults.
         Ok(RerankResult {
@@ -94,6 +78,36 @@ impl RerankingModel for VoyageRerankingModel {
             usage: Usage::default(),
         })
     }
+}
+
+fn parse_results(data: &serde_json::Value) -> AiResult<Vec<RerankedDocument>> {
+    let results = data["results"]
+        .as_array()
+        .ok_or_else(|| AiError::Transport {
+            message: "Voyage rerank: missing results array in response".into(),
+            source: None,
+        })?
+        .iter()
+        .map(|r| {
+            // Voyage returns `document` as a plain string, not an object with `text`.
+            let doc = r["document"].as_str().map(String::from);
+            let index = r["index"]
+                .as_u64()
+                .and_then(|index| usize::try_from(index).ok())
+                .ok_or_else(|| {
+                    AiError::Serialization("Voyage rerank: invalid or missing index".into())
+                })?;
+            let score = r["relevance_score"].as_f64().ok_or_else(|| {
+                AiError::Serialization("Voyage rerank: invalid or missing relevance score".into())
+            })?;
+            Ok(RerankedDocument {
+                index,
+                score,
+                document: doc,
+            })
+        })
+        .collect::<AiResult<_>>()?;
+    Ok(results)
 }
 
 #[cfg(test)]
@@ -111,5 +125,21 @@ mod tests {
     fn test_voyage_model_lite() {
         let model = VoyageRerankingModel::new("rerank-2-lite", "test-key");
         assert_eq!(model.model_id(), "rerank-2-lite");
+    }
+
+    #[test]
+    fn missing_rerank_values_are_errors() {
+        for response in [
+            serde_json::json!({"results":[{"relevance_score":0.72}]}),
+            serde_json::json!({"results":[{"index":1}]}),
+        ] {
+            assert!(parse_results(&response).is_err());
+        }
+        let response =
+            serde_json::json!({"results":[{"index":1,"relevance_score":0.72,"document":"second"}]});
+        let results = parse_results(&response).unwrap();
+        assert_eq!(results[0].index, 1);
+        assert_eq!(results[0].score, 0.72);
+        assert_eq!(results[0].document.as_deref(), Some("second"));
     }
 }
