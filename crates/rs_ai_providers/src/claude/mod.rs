@@ -11,17 +11,25 @@
 //! # Quick start
 //!
 //! ```rust,no_run
+//! # #[cfg(all(feature = "claude", not(target_arch = "wasm32")))]
+//! # {
 //! use rs_ai_providers::claude::ClaudeProvider;
 //!
 //! let provider = ClaudeProvider::new("sk-ant-...");
 //! let model = provider.claude_sonnet();
+//! # }
 //! ```
 
-mod api_types;
-mod convert;
+pub(crate) mod api_types;
+pub(crate) mod convert;
+#[cfg(all(feature = "claude", not(target_arch = "wasm32")))]
 mod model;
+#[cfg(all(feature = "claude", not(target_arch = "wasm32")))]
 mod provider;
+#[cfg(all(feature = "claude", not(target_arch = "wasm32")))]
 mod stream_parser;
 
+#[cfg(all(feature = "claude", not(target_arch = "wasm32")))]
 pub use model::*;
+#[cfg(all(feature = "claude", not(target_arch = "wasm32")))]
 pub use provider::*;

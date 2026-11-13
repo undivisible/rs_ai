@@ -14,14 +14,23 @@
 //! - `portkey` — Portkey AI Gateway
 //! - `langfuse` — Langfuse observability wrapper
 //!
+//! The `browser` feature provides non-streaming Anthropic and OpenAI-compatible
+//! API-key clients on Wasm and native targets. The existing `claude` and
+//! `openai-compatible` LanguageModel implementations are native-only; other
+//! provider features have not been ported to Wasm. Browser APIs require provider
+//! CORS permission and expose the key to the calling page.
+//!
 //! The `catalog` module (always on) provides static metadata for
 //! API-key-based providers — id, name, env vars, base URLs, models.
 
 pub mod catalog;
 
+#[cfg(feature = "browser")]
+pub mod browser;
+
 #[cfg(feature = "chatgpt")]
 pub mod chatgpt;
-#[cfg(feature = "claude")]
+#[cfg(any(feature = "claude", feature = "browser"))]
 pub mod claude;
 #[cfg(feature = "cloudflare")]
 pub mod cloudflare;
@@ -33,7 +42,7 @@ pub mod gemini;
 pub mod langfuse;
 #[cfg(feature = "ollama")]
 pub mod ollama;
-#[cfg(feature = "openai-compatible")]
+#[cfg(any(feature = "openai-compatible", feature = "browser"))]
 pub mod openai_compatible;
 #[cfg(feature = "portkey")]
 pub mod portkey;
@@ -45,7 +54,7 @@ pub mod xai;
 // Re-exports for convenience when the corresponding feature is enabled.
 #[cfg(feature = "chatgpt")]
 pub use chatgpt::*;
-#[cfg(feature = "claude")]
+#[cfg(all(feature = "claude", not(target_arch = "wasm32")))]
 pub use claude::*;
 #[cfg(feature = "cloudflare")]
 pub use cloudflare::*;
@@ -57,7 +66,7 @@ pub use gemini::*;
 pub use langfuse::*;
 #[cfg(feature = "ollama")]
 pub use ollama::*;
-#[cfg(feature = "openai-compatible")]
+#[cfg(all(feature = "openai-compatible", not(target_arch = "wasm32")))]
 pub use openai_compatible::*;
 #[cfg(feature = "portkey")]
 pub use portkey::*;

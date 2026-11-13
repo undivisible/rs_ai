@@ -8,15 +8,23 @@
 //! follows the OpenAI chat-completions wire format (OpenAI, Azure, Together,
 //! Groq, local vLLM, etc.).
 
-mod api_types;
+pub(crate) mod api_types;
+#[cfg(all(feature = "openai-compatible", not(target_arch = "wasm32")))]
 mod config;
-mod convert;
+pub(crate) mod convert;
+#[cfg(all(feature = "openai-compatible", not(target_arch = "wasm32")))]
 mod model;
+#[cfg(all(feature = "openai-compatible", not(target_arch = "wasm32")))]
 mod provider;
+#[cfg(all(feature = "openai-compatible", not(target_arch = "wasm32")))]
 mod stream_parser;
 
+#[cfg(all(feature = "openai-compatible", not(target_arch = "wasm32")))]
 pub mod presets;
 
+#[cfg(all(feature = "openai-compatible", not(target_arch = "wasm32")))]
 pub use config::OpenAiCompatibleConfig;
+#[cfg(all(feature = "openai-compatible", not(target_arch = "wasm32")))]
 pub use model::OpenAiCompatibleModel;
+#[cfg(all(feature = "openai-compatible", not(target_arch = "wasm32")))]
 pub use provider::OpenAiCompatibleProvider;

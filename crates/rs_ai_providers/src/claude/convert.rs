@@ -92,10 +92,20 @@ pub(crate) fn convert_prompt(
                 // Tool results in Anthropic are sent as a user message with
                 // tool_result content blocks.
                 let blocks = convert_tool_result_content(&msg.content);
-                api_messages.push(ApiMessage {
-                    role: "user".to_string(),
-                    content: ApiContent::Blocks(blocks),
-                });
+                if idx > 0 && messages[idx - 1].role == Role::Tool {
+                    if let Some(ApiMessage {
+                        content: ApiContent::Blocks(previous),
+                        ..
+                    }) = api_messages.last_mut()
+                    {
+                        previous.extend(blocks);
+                    }
+                } else {
+                    api_messages.push(ApiMessage {
+                        role: "user".to_string(),
+                        content: ApiContent::Blocks(blocks),
+                    });
+                }
             }
         }
     }
