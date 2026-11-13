@@ -10,15 +10,19 @@ keywords = ["oauth", "ai", "xai", "grok", "openai"]
 categories = ["authentication", "api-bindings"]
 
 [features]
-default = ["browser"]
+default = ["browser", "native"]
 browser = []
+native = ["dep:oauth2", "dep:reqwest"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2"
-oauth2 = { version = "5.0", default-features = false, features = ["reqwest", "rustls-tls"] }
-reqwest = { version = "0.12", features = ["blocking", "json"], default-features = false }
 url = "2"
 base64 = "0.22"
 sha2 = "0.10"
+getrandom = { version = "0.2", features = ["js"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+oauth2 = { version = "5.0", default-features = false, features = ["reqwest", "rustls-tls"], optional = true }
+reqwest = { version = "0.12", features = ["blocking", "json"], default-features = false, optional = true }
