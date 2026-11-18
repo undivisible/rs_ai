@@ -25,6 +25,9 @@ members = [
     "examples/fluent_api",
 ]
 
+[patch.crates-io]
+rs_ai_core = { path = "crates/rs_ai_core" }
+
 [workspace.package]
 version = "0.3.0"
 edition = "2021"
